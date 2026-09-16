@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"log"
+	"os"
 
 	"backend-api-kpmacademy/database"
 	"backend-api-kpmacademy/models"
@@ -33,7 +34,7 @@ func RunMigrations() {
 	log.Println("Migrations completed successfully")
 }
 
-func SeedAdmin() {
+func SeedAdmin(cfg interface{}) {
 	db := database.GetDB()
 
 	var count int64
@@ -43,14 +44,23 @@ func SeedAdmin() {
 		return
 	}
 
-	hashedPassword, err := utils.HashPassword("Admin123!")
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail == "" {
+		adminEmail = "admin@kpmacademy.com"
+	}
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		adminPassword = "Admin123!"
+	}
+
+	hashedPassword, err := utils.HashPassword(adminPassword)
 	if err != nil {
 		log.Fatalf("Failed to hash admin password: %v", err)
 	}
 
 	admin := models.User{
 		Name:       "Admin KPM Academy",
-		Email:      "admin@kpmacademy.com",
+		Email:      adminEmail,
 		Password:   hashedPassword,
 		Role:       "admin",
 		IsVerified: true,
@@ -62,5 +72,5 @@ func SeedAdmin() {
 		return
 	}
 
-	log.Println("Admin seeded successfully - Email: admin@kpmacademy.com | Password: Admin123!")
+	log.Println("Admin seeded successfully")
 }

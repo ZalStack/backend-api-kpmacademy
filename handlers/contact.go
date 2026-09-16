@@ -43,7 +43,7 @@ func CreateContactForm() fiber.Handler {
 		db := database.GetDB()
 
 		var userID *uuid.UUID
-		if uid, ok := c.Locals("user_id").(uuid.UUID); ok {
+		if uid, ok := utils.GetUserID(c); ok {
 			userID = &uid
 		}
 
@@ -143,12 +143,17 @@ func AdminReplyContactForm() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if errs := utils.ValidateStruct(req); len(errs) > 0 {
+			return utils.BadRequestResponse(c, "Validation failed", errs)
+		}
 
 		now := time.Now()
 		form.AdminReply = req.AdminReply
 		form.Status = "replied"
 		form.RepliedAt = &now
-		db.Save(&form)
+		if result := db.Save(&form); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to submit reply")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Reply submitted", form)
 	}
@@ -170,9 +175,14 @@ func AdminUpdateContactStatus() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if !utils.ValidateStatus(req.Status, []string{"pending", "read", "replied", "closed"}) {
+			return utils.BadRequestResponse(c, "Invalid status. Must be: pending, read, replied, or closed", nil)
+		}
 
 		form.Status = req.Status
-		db.Save(&form)
+		if result := db.Save(&form); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to update status")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Status updated", form)
 	}
 }
@@ -188,7 +198,9 @@ func AdminDeleteContactForm() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&form); result.Error != nil {
 			return utils.NotFoundResponse(c, "Contact form not found")
 		}
-		db.Delete(&form)
+		if result := db.Delete(&form); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete contact form")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Contact form deleted", nil)
 	}
 }
@@ -201,9 +213,12 @@ func SendChatMessage() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if errs := utils.ValidateStruct(req); len(errs) > 0 {
+			return utils.BadRequestResponse(c, "Validation failed", errs)
+		}
 
 		var userID *uuid.UUID
-		if uid, ok := c.Locals("user_id").(uuid.UUID); ok {
+		if uid, ok := utils.GetUserID(c); ok {
 			userID = &uid
 		}
 
@@ -219,20 +234,24 @@ func SendChatMessage() fiber.Handler {
 			Message:   req.Message,
 			IsAI:      false,
 		}
-		db.Create(&userMsg)
+		if result := db.Create(&userMsg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to save message")
+		}
 
 		assistantMsg := models.ChatMessage{
 			SessionID: sessionID,
 			UserID:    userID,
 			Role:      "assistant",
 			Message:   "Thank you for your message. Our team will get back to you soon.",
-			IsAI:      true,
+			IsAI:      false,
 		}
-		db.Create(&assistantMsg)
+		if result := db.Create(&assistantMsg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to save reply")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusCreated, "Message sent", fiber.Map{
-			"session_id": sessionID,
-			"user_message":     userMsg,
+			"session_id":        sessionID,
+			"user_message":      userMsg,
 			"assistant_message": assistantMsg,
 		})
 	}

@@ -16,7 +16,12 @@ func GetAllVideos() fiber.Handler {
 		db := database.GetDB()
 		page, perPage, offset := utils.GetPagination(c)
 
-		query := db.Model(&models.Video{}).Where("is_active = ?", true)
+		query := db.Model(&models.Video{})
+		if utils.IsAdmin(c) {
+			// Admin sees all
+		} else {
+			query = query.Where("is_active = ?", true)
+		}
 		if packageID := c.Query("package_id"); packageID != "" {
 			query = query.Where("package_id = ?", packageID)
 		}
@@ -149,7 +154,9 @@ func UpdateVideo() fiber.Handler {
 			video.MinPayAmount = *req.MinPayAmount
 		}
 
-		db.Save(&video)
+		if result := db.Save(&video); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to update video")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Video updated", video)
 	}
 }
@@ -165,7 +172,9 @@ func DeleteVideo() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&video); result.Error != nil {
 			return utils.NotFoundResponse(c, "Video not found")
 		}
-		db.Delete(&video)
+		if result := db.Delete(&video); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete video")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Video deleted", nil)
 	}
 }
@@ -182,14 +191,19 @@ func ToggleVideoActive() fiber.Handler {
 			return utils.NotFoundResponse(c, "Video not found")
 		}
 		video.IsActive = !video.IsActive
-		db.Save(&video)
+		if result := db.Save(&video); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to toggle video status")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Video status toggled", video)
 	}
 }
 
 func CreateVideoOrder() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		videoID, err := uuid.Parse(c.Params("id"))
 		if err != nil {
 			return utils.BadRequestResponse(c, "Invalid video ID", nil)
@@ -205,6 +219,11 @@ func CreateVideoOrder() fiber.Handler {
 		if video.IsPayWhatYouWant {
 			var req models.CreateVideoOrderRequest
 			if err := c.BodyParser(&req); err == nil && req.TotalPrice > 0 {
+				if req.TotalPrice < video.MinPayAmount {
+					return utils.BadRequestResponse(c, "Minimum payment is required", fiber.Map{
+						"min_amount": video.MinPayAmount,
+					})
+				}
 				totalPrice = req.TotalPrice
 			}
 		}
@@ -212,7 +231,7 @@ func CreateVideoOrder() fiber.Handler {
 		orderNumber := "VID-ORD-" + time.Now().Format("20060102150405") + "-" + utils.GenerateRandomString(6)
 
 		order := models.VideoOrder{
-			UserID:        userID,
+			UserID:        uid,
 			VideoID:       videoID,
 			OrderNumber:   orderNumber,
 			TotalPrice:    totalPrice,
@@ -229,6 +248,10 @@ func CreateVideoOrder() fiber.Handler {
 
 func SimulateVideoPayment() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		id, err := uuid.Parse(c.Params("orderId"))
 		if err != nil {
 			return utils.BadRequestResponse(c, "Invalid order ID", nil)
@@ -236,8 +259,8 @@ func SimulateVideoPayment() fiber.Handler {
 		db := database.GetDB()
 
 		var order models.VideoOrder
-		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Video order not found")
+		if result := db.Where("id = ? AND user_id = ?", id, uid).First(&order); result.Error != nil {
+			return utils.NotFoundResponse(c, "Video order not found or access denied")
 		}
 		if order.PaymentStatus != "pending" {
 			return utils.BadRequestResponse(c, "Order is not pending", nil)
@@ -250,10 +273,23 @@ func SimulateVideoPayment() fiber.Handler {
 		order.PaymentTime = &now
 		order.AccessGranted = true
 		order.AccessStart = &now
-		end := now.AddDate(0, 0, 30)
-		order.AccessEnd = &end
 
-		db.Save(&order)
+		var video models.Video
+		if result := db.Where("id = ?", order.VideoID).First(&video); result.Error == nil {
+			duration := video.AccessDurationDays
+			if duration == 0 {
+				duration = 30
+			}
+			end := now.AddDate(0, 0, duration)
+			order.AccessEnd = &end
+		} else {
+			end := now.AddDate(0, 0, 30)
+			order.AccessEnd = &end
+		}
+
+		if result := db.Save(&order); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to process payment")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Video payment successful", order)
 	}
 }

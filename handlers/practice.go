@@ -13,7 +13,10 @@ import (
 
 func StartPractice() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 
 		var req models.StartPracticeRequest
@@ -24,24 +27,30 @@ func StartPractice() fiber.Handler {
 			return utils.BadRequestResponse(c, "Validation failed", errs)
 		}
 
+		pkgID, err := uuid.Parse(req.PackageID)
+		if err != nil {
+			return utils.BadRequestResponse(c, "Invalid package ID", nil)
+		}
+
 		var pkg models.Package
-		if result := db.Where("id = ?", req.PackageID).First(&pkg); result.Error != nil {
+		if result := db.Where("id = ?", pkgID).First(&pkg); result.Error != nil {
 			return utils.NotFoundResponse(c, "Package not found")
 		}
 
 		var order models.Order
-		if result := db.Where("user_id = ? AND package_id = ? AND payment_status = ?", userID, pkg.ID, "paid").First(&order); result.Error != nil {
+		if result := db.Where("user_id = ? AND package_id = ? AND payment_status = ?", uid, pkg.ID, "paid").First(&order); result.Error != nil {
 			return utils.ForbiddenResponse(c, "You must purchase this package first")
 		}
 
 		now := time.Now()
 		session := models.PracticeSession{
-			UserID:    userID,
+			UserID:    uid,
 			PackageID: pkg.ID,
 			OrderID:   order.ID,
 			CardID:    req.CardID,
 			StartedAt: &now,
 			Status:    "in_progress",
+			Answers:   "[]",
 		}
 
 		if result := db.Create(&session); result.Error != nil {
@@ -54,16 +63,22 @@ func StartPractice() fiber.Handler {
 
 func SubmitPractice() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 
 		var req models.SubmitPracticeRequest
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if errs := utils.ValidateStruct(req); len(errs) > 0 {
+			return utils.BadRequestResponse(c, "Validation failed", errs)
+		}
 
 		var session models.PracticeSession
-		if result := db.Where("id = ? AND user_id = ?", req.SessionID, userID).First(&session); result.Error != nil {
+		if result := db.Where("id = ? AND user_id = ?", req.SessionID, uid).First(&session); result.Error != nil {
 			return utils.NotFoundResponse(c, "Practice session not found")
 		}
 		if session.Status == "finished" {
@@ -72,25 +87,32 @@ func SubmitPractice() fiber.Handler {
 
 		now := time.Now()
 		session.Answers = req.Answers
-		session.DurationSeconds = req.Duration
+		if req.Duration >= 0 {
+			session.DurationSeconds = req.Duration
+		}
 		session.FinishedAt = &now
 		session.Status = "finished"
 
-		db.Save(&session)
+		if result := db.Save(&session); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to submit practice")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Practice submitted", session)
 	}
 }
 
 func ShowPracticeSession() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		id, err := uuid.Parse(c.Params("id"))
 		if err != nil {
 			return utils.BadRequestResponse(c, "Invalid session ID", nil)
 		}
 		db := database.GetDB()
 		var session models.PracticeSession
-		if result := db.Preload("Package").Where("id = ? AND user_id = ?", id, userID).First(&session); result.Error != nil {
+		if result := db.Preload("Package").Where("id = ? AND user_id = ?", id, uid).First(&session); result.Error != nil {
 			return utils.NotFoundResponse(c, "Session not found")
 		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Session retrieved", session)
@@ -99,15 +121,18 @@ func ShowPracticeSession() fiber.Handler {
 
 func GetPracticeHistory() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 		page, perPage, offset := utils.GetPagination(c)
 
 		var total int64
-		db.Model(&models.PracticeSession{}).Where("user_id = ?", userID).Count(&total)
+		db.Model(&models.PracticeSession{}).Where("user_id = ?", uid).Count(&total)
 
 		var sessions []models.PracticeSession
-		if result := db.Preload("Package").Where("user_id = ?", userID).Offset(offset).Limit(perPage).Order("created_at DESC").Find(&sessions); result.Error != nil {
+		if result := db.Preload("Package").Where("user_id = ?", uid).Offset(offset).Limit(perPage).Order("created_at DESC").Find(&sessions); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to retrieve practice history")
 		}
 
@@ -119,20 +144,23 @@ func GetPracticeHistory() fiber.Handler {
 
 func GetPracticeStatisticsUser() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 
 		var totalSessions int64
-		db.Model(&models.PracticeSession{}).Where("user_id = ?", userID).Count(&totalSessions)
+		db.Model(&models.PracticeSession{}).Where("user_id = ?", uid).Count(&totalSessions)
 
 		var avgScore float64
-		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", userID, "finished").Select("COALESCE(AVG(total_score),0)").Scan(&avgScore)
+		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", uid, "finished").Select("COALESCE(AVG(total_score),0)").Scan(&avgScore)
 
 		var totalCorrect int64
-		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", userID, "finished").Select("COALESCE(SUM(correct_answer),0)").Scan(&totalCorrect)
+		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", uid, "finished").Select("COALESCE(SUM(correct_answer),0)").Scan(&totalCorrect)
 
 		var totalWrong int64
-		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", userID, "finished").Select("COALESCE(SUM(wrong_answer),0)").Scan(&totalWrong)
+		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", uid, "finished").Select("COALESCE(SUM(wrong_answer),0)").Scan(&totalWrong)
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Statistics retrieved", fiber.Map{
 			"total_sessions": totalSessions,

@@ -14,7 +14,6 @@ func SecurityHeaders() fiber.Handler {
 		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Set("Content-Security-Policy", "default-src 'self'")
 		c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
 		c.Set("Pragma", "no-cache")
 		return c.Next()
@@ -23,10 +22,17 @@ func SecurityHeaders() fiber.Handler {
 
 func CORS() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		c.Set("Access-Control-Allow-Origin", "*")
+		origin := c.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+
+		c.Set("Access-Control-Allow-Origin", origin)
 		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization,X-Requested-With")
+		c.Set("Access-Control-Allow-Headers", "Content-Type,Accept,X-Requested-With")
+		c.Set("Access-Control-Allow-Credentials", "true")
 		c.Set("Access-Control-Max-Age", "86400")
+		c.Set("Access-Control-Expose-Headers", "Content-Length")
 
 		if c.Method() == "OPTIONS" {
 			return c.SendStatus(204)

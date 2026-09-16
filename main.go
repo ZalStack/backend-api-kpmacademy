@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"backend-api-kpmacademy/config"
 	"backend-api-kpmacademy/database"
@@ -21,26 +26,44 @@ func main() {
 	database.Connect(cfg)
 
 	migrations.RunMigrations()
-	migrations.SeedAdmin()
+	migrations.SeedAdmin(cfg)
 
 	app := fiber.New(fiber.Config{
 		AppName:      cfg.App.Name,
 		ErrorHandler: customErrorHandler,
+		BodyLimit:    int(cfg.Upload.MaxUploadSize),
 	})
 
 	app.Use(recover.New())
-	app.Use(logger.New())
 	app.Use(compress.New())
+	if cfg.App.Debug {
+		app.Use(logger.New())
+	}
 	app.Use(middleware.CORS())
 	app.Use(middleware.SecurityHeaders())
 	app.Use(middleware.RateLimit(cfg.Rate.Limit, cfg.Rate.Expiration))
 
 	routes.SetupRoutes(app, cfg)
 
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := app.ShutdownWithContext(ctx); err != nil {
+			log.Fatalf("Server forced to shutdown: %v", err)
+		}
+	}()
+
 	log.Printf("Server starting on port %s", cfg.App.Port)
 	if err := app.Listen(":" + cfg.App.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+
+	log.Println("Server stopped")
 }
 
 func customErrorHandler(c *fiber.Ctx, err error) error {
@@ -51,6 +74,7 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 		message = e.Message
 	}
 	return c.Status(code).JSON(fiber.Map{
-		"success": false, "message": message, "errors": err.Error(),
+		"success": false,
+		"message": message,
 	})
 }

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"time"
+	"encoding/json"
 
 	"backend-api-kpmacademy/database"
 	"backend-api-kpmacademy/models"
@@ -10,6 +10,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
+
+var jsonUnmarshal = json.Unmarshal
+var jsonMarshal = json.Marshal
 
 func AdminDashboard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -31,14 +34,17 @@ func AdminDashboard() fiber.Handler {
 
 func UserDashboard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 		var totalOrders int64
-		db.Model(&models.Order{}).Where("user_id = ? AND payment_status = ?", userID, "paid").Count(&totalOrders)
+		db.Model(&models.Order{}).Where("user_id = ? AND payment_status = ?", uid, "paid").Count(&totalOrders)
 		var totalPractice int64
-		db.Model(&models.PracticeSession{}).Where("user_id = ?", userID).Count(&totalPractice)
+		db.Model(&models.PracticeSession{}).Where("user_id = ?", uid).Count(&totalPractice)
 		var avgScore float64
-		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", userID, "finished").Select("COALESCE(AVG(total_score),0)").Scan(&avgScore)
+		db.Model(&models.PracticeSession{}).Where("user_id = ? AND status = ?", uid, "finished").Select("COALESCE(AVG(total_score),0)").Scan(&avgScore)
 		return utils.SuccessResponse(c, fiber.StatusOK, "Dashboard data", fiber.Map{
 			"total_orders": totalOrders, "total_practice": totalPractice, "avg_score": avgScore,
 		})
@@ -92,7 +98,11 @@ func GetPackageByID() fiber.Handler {
 		}
 		db := database.GetDB()
 		var pkg models.Package
-		if result := db.Where("id = ?", id).First(&pkg); result.Error != nil {
+		query := db.Where("id = ?", id)
+		if !utils.IsAdmin(c) {
+			query = query.Where("is_active = ?", true)
+		}
+		if result := query.First(&pkg); result.Error != nil {
 			return utils.NotFoundResponse(c, "Package not found")
 		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Package retrieved", pkg)
@@ -109,12 +119,20 @@ func CreatePackage() fiber.Handler {
 			return utils.BadRequestResponse(c, "Validation failed", errs)
 		}
 		db := database.GetDB()
+		cards := req.Cards
+		if cards == "" {
+			cards = "[]"
+		}
+		questions := req.Questions
+		if questions == "" {
+			questions = "[]"
+		}
 		pkg := models.Package{
 			Title: req.Title, Description: req.Description, Thumbnail: req.Thumbnail,
 			Kelas: req.Kelas, Jenjang: req.Jenjang, Price: req.Price,
 			IsPayWhatYouWant: req.IsPayWhatYouWant, MinPayAmount: req.MinPayAmount,
-			MembershipDurationDays: req.MembershipDurationDays, Cards: req.Cards,
-			Questions: req.Questions, HideExplanation: req.HideExplanation, IsActive: true,
+			MembershipDurationDays: req.MembershipDurationDays, Cards: cards,
+			Questions: questions, Reviews: "[]", HideExplanation: req.HideExplanation, IsActive: true,
 		}
 		if pkg.MembershipDurationDays == 0 {
 			pkg.MembershipDurationDays = 30
@@ -196,7 +214,9 @@ func UpdatePackage() fiber.Handler {
 		if req.IsActive != nil {
 			pkg.IsActive = *req.IsActive
 		}
-		db.Save(&pkg)
+		if result := db.Save(&pkg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to update package")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Package updated", pkg)
 	}
 }
@@ -212,7 +232,9 @@ func DeletePackage() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&pkg); result.Error != nil {
 			return utils.NotFoundResponse(c, "Package not found")
 		}
-		db.Delete(&pkg)
+		if result := db.Delete(&pkg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete package")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Package deleted", nil)
 	}
 }
@@ -233,7 +255,9 @@ func AddCardToPackage() fiber.Handler {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
 		pkg.Cards = req.Cards
-		db.Save(&pkg)
+		if result := db.Save(&pkg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to update cards")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Cards updated", pkg)
 	}
 }
@@ -244,14 +268,51 @@ func RemoveCardFromPackage() fiber.Handler {
 		if err != nil {
 			return utils.BadRequestResponse(c, "Invalid package ID", nil)
 		}
+		cardID := c.Params("cardId")
+		if cardID == "" {
+			return utils.BadRequestResponse(c, "Invalid card ID", nil)
+		}
+
 		db := database.GetDB()
 		var pkg models.Package
 		if result := db.Where("id = ?", id).First(&pkg); result.Error != nil {
 			return utils.NotFoundResponse(c, "Package not found")
 		}
-		pkg.Cards = "[]"
-		db.Save(&pkg)
-		return utils.SuccessResponse(c, fiber.StatusOK, "Cards cleared", pkg)
+
+		if pkg.Cards == "" || pkg.Cards == "[]" || pkg.Cards == "null" {
+			return utils.SuccessResponse(c, fiber.StatusOK, "No cards to remove", pkg)
+		}
+
+		var cards []map[string]interface{}
+		if err := jsonUnmarshal([]byte(pkg.Cards), &cards); err != nil {
+			return utils.InternalErrorResponse(c, "Failed to parse cards")
+		}
+
+		var filtered []map[string]interface{}
+		found := false
+		for _, card := range cards {
+			cid, _ := card["id"].(string)
+			if cid == cardID {
+				found = true
+				continue
+			}
+			filtered = append(filtered, card)
+		}
+
+		if !found {
+			return utils.NotFoundResponse(c, "Card not found")
+		}
+
+		filteredBytes, err := jsonMarshal(filtered)
+		if err != nil {
+			return utils.InternalErrorResponse(c, "Failed to serialize cards")
+		}
+		pkg.Cards = string(filteredBytes)
+
+		if result := db.Save(&pkg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to remove card")
+		}
+		return utils.SuccessResponse(c, fiber.StatusOK, "Card removed", pkg)
 	}
 }
 
@@ -271,232 +332,9 @@ func ImportQuestionsPDF() fiber.Handler {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
 		pkg.Questions = req.Questions
-		db.Save(&pkg)
+		if result := db.Save(&pkg); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to import questions")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Questions imported", pkg)
-	}
-}
-
-func AdminIndexOrders() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		query := db.Model(&models.Order{})
-		if status := c.Query("payment_status"); status != "" {
-			query = query.Where("payment_status = ?", status)
-		}
-		var total int64
-		query.Count(&total)
-		var orders []models.Order
-		if result := query.Preload("User").Preload("Package").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve orders")
-		}
-		return utils.SuccessResponseWithPagination(c, "Orders retrieved", orders, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func AdminShowOrder() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid order ID", nil)
-		}
-		db := database.GetDB()
-		var order models.Order
-		if result := db.Preload("User").Preload("Package").Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Order not found")
-		}
-		return utils.SuccessResponse(c, fiber.StatusOK, "Order retrieved", order)
-	}
-}
-
-func AdminVerifyOrder() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid order ID", nil)
-		}
-		db := database.GetDB()
-		var order models.Order
-		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Order not found")
-		}
-		order.PaymentStatus = "paid"
-		now := time.Now()
-		order.PaymentTime = &now
-		if order.PackageID != nil {
-			var pkg models.Package
-			if result := db.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
-				dur := pkg.MembershipDurationDays
-				order.MembershipDurationDays = &dur
-				order.MembershipStart = &now
-				end := now.AddDate(0, 0, pkg.MembershipDurationDays)
-				order.MembershipEnd = &end
-			}
-		}
-		db.Save(&order)
-		return utils.SuccessResponse(c, fiber.StatusOK, "Order verified", order)
-	}
-}
-
-func GetAllTransactions() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		var total int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&total)
-		var orders []models.Order
-		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", "paid").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve transactions")
-		}
-		return utils.SuccessResponseWithPagination(c, "Transactions retrieved", orders, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func GetTransactionStats() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		var totalRevenue float64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Select("COALESCE(SUM(total_price),0)").Scan(&totalRevenue)
-		var totalTransactions int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&totalTransactions)
-		var totalUsers int64
-		db.Model(&models.User{}).Where("role = ?", "user").Count(&totalUsers)
-		return utils.SuccessResponse(c, fiber.StatusOK, "Stats retrieved", fiber.Map{
-			"total_revenue": totalRevenue, "total_transactions": totalTransactions, "total_users": totalUsers,
-		})
-	}
-}
-
-func ShowTransaction() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid transaction ID", nil)
-		}
-		db := database.GetDB()
-		var order models.Order
-		if result := db.Preload("User").Preload("Package").Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Transaction not found")
-		}
-		return utils.SuccessResponse(c, fiber.StatusOK, "Transaction retrieved", order)
-	}
-}
-
-func GetPracticeStatisticsAdmin() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		var total int64
-		db.Model(&models.PracticeSession{}).Count(&total)
-		var sessions []models.PracticeSession
-		if result := db.Preload("User").Preload("Package").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&sessions); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve statistics")
-		}
-		return utils.SuccessResponseWithPagination(c, "Statistics retrieved", sessions, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func ShowPracticeStatistics() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid session ID", nil)
-		}
-		db := database.GetDB()
-		var session models.PracticeSession
-		if result := db.Preload("User").Preload("Package").Where("id = ?", id).First(&session); result.Error != nil {
-			return utils.NotFoundResponse(c, "Session not found")
-		}
-		return utils.SuccessResponse(c, fiber.StatusOK, "Session retrieved", session)
-	}
-}
-
-func GetEnrollKeys() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		var total int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&total)
-		var orders []models.Order
-		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", "paid").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve enroll keys")
-		}
-		return utils.SuccessResponseWithPagination(c, "Enroll keys retrieved", orders, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func ShowEnrollKey() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid ID", nil)
-		}
-		db := database.GetDB()
-		var order models.Order
-		if result := db.Preload("User").Preload("Package").Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Enroll key not found")
-		}
-		return utils.SuccessResponse(c, fiber.StatusOK, "Enroll key retrieved", order)
-	}
-}
-
-func AdminIndexReports() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		var total int64
-		db.Model(&models.Order{}).Count(&total)
-		var orders []models.Order
-		if result := db.Preload("User").Preload("Package").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve reports")
-		}
-		return utils.SuccessResponseWithPagination(c, "Reports retrieved", orders, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func GetVideoOrdersAdmin() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		db := database.GetDB()
-		page, perPage, offset := utils.GetPagination(c)
-		var total int64
-		db.Model(&models.VideoOrder{}).Count(&total)
-		var orders []models.VideoOrder
-		if result := db.Preload("User").Preload("Video").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to retrieve video orders")
-		}
-		return utils.SuccessResponseWithPagination(c, "Video orders retrieved", orders, &utils.Pagination{
-			Total: total, PerPage: perPage, CurrentPage: page, LastPage: utils.CalcLastPage(total, perPage),
-		})
-	}
-}
-
-func AdminGrantVideoAccess() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid order ID", nil)
-		}
-		db := database.GetDB()
-		var order models.VideoOrder
-		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Video order not found")
-		}
-		now := time.Now()
-		order.AccessGranted = true
-		order.AccessStart = &now
-		end := now.AddDate(0, 0, 30)
-		order.AccessEnd = &end
-		db.Save(&order)
-		return utils.SuccessResponse(c, fiber.StatusOK, "Access granted", order)
 	}
 }

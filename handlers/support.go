@@ -24,7 +24,7 @@ func SubmitSupport() fiber.Handler {
 		db := database.GetDB()
 
 		var userID *uuid.UUID
-		if uid, ok := c.Locals("user_id").(uuid.UUID); ok {
+		if uid, ok := utils.GetUserID(c); ok {
 			userID = &uid
 		}
 
@@ -119,12 +119,17 @@ func AdminAnswerSupport() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if errs := utils.ValidateStruct(req); len(errs) > 0 {
+			return utils.BadRequestResponse(c, "Validation failed", errs)
+		}
 
 		now := time.Now()
 		ticket.Answer = req.Answer
 		ticket.Status = "answered"
 		ticket.AnsweredAt = &now
-		db.Save(&ticket)
+		if result := db.Save(&ticket); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to submit answer")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Answer submitted", ticket)
 	}
@@ -146,9 +151,14 @@ func AdminUpdateSupportStatus() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if !utils.ValidateStatus(req.Status, []string{"pending", "answered", "closed"}) {
+			return utils.BadRequestResponse(c, "Invalid status. Must be: pending, answered, or closed", nil)
+		}
 
 		ticket.Status = req.Status
-		db.Save(&ticket)
+		if result := db.Save(&ticket); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to update status")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Status updated", ticket)
 	}
@@ -165,7 +175,9 @@ func AdminDeleteSupport() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&ticket); result.Error != nil {
 			return utils.NotFoundResponse(c, "Support ticket not found")
 		}
-		db.Delete(&ticket)
+		if result := db.Delete(&ticket); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete ticket")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Ticket deleted", nil)
 	}
 }

@@ -10,6 +10,8 @@ import (
 
 func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	api := app.Group("/api")
+	auth := middleware.AuthProtected(cfg)
+	admin := middleware.AdminOnly()
 
 	api.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -18,128 +20,119 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	})
 
 	api.Get("/testimonials", handlers.GetPublicTestimonials())
-	api.Get("/kontak-form", handlers.GetContactForms())
+	api.Get("/packages", handlers.GetAllPackagesPublic())
+	api.Get("/packages/:id", handlers.GetPackageByID())
+	api.Get("/videos", handlers.GetAllVideos())
+	api.Get("/videos/:id", handlers.GetVideoByID())
 	api.Post("/kontak-form", handlers.CreateContactForm())
-	api.Get("/kontak-form/:id", handlers.GetContactFormByID())
 	api.Post("/support/submit", handlers.SubmitSupport())
-	api.Get("/support/tickets", handlers.GetSupportTickets())
 	api.Post("/chat/send", handlers.SendChatMessage())
 	api.Get("/chat/history", handlers.GetChatHistory())
-
-	auth := api.Group("/auth")
-	auth.Post("/register", handlers.Register(cfg))
-	auth.Post("/login", handlers.Login(cfg))
-	auth.Post("/refresh-token", handlers.RefreshToken(cfg))
-	auth.Post("/forgot-password", handlers.ForgotPassword(cfg))
-	auth.Post("/reset-password", handlers.ResetPassword(cfg))
-
-	protected := api.Group("")
-	protected.Use(middleware.AuthProtected(cfg))
-
-	protected.Post("/auth/logout", handlers.Logout(cfg))
-	protected.Get("/profile", handlers.GetProfile())
-	protected.Put("/profile", handlers.UpdateProfile())
-	protected.Put("/profile/change-password", handlers.ChangePassword())
-
-	protected.Get("/dashboard", handlers.UserDashboard())
-	protected.Get("/notifications", handlers.GetUserNotifications())
-	protected.Get("/notifications/unread-count", handlers.GetUnreadNotificationCount())
-	protected.Post("/notifications/:id/read", handlers.MarkNotificationRead())
-	protected.Post("/notifications/read-all", handlers.MarkAllNotificationsRead())
-
-	packages := api.Group("/packages")
-	packages.Get("", handlers.GetAllPackagesPublic())
-	packages.Get("/:id", handlers.GetPackageByID())
-
-	orders := protected.Group("/orders")
-	orders.Post("", handlers.CreateOrder())
-	orders.Get("", handlers.GetUserOrders())
-	orders.Get("/status", handlers.PaymentStatus())
-	orders.Get("/:id", handlers.GetOrderByID())
-	orders.Post("/:id/pay", handlers.SimulatePayment())
-
-	practice := protected.Group("/practice")
-	practice.Post("/start", handlers.StartPractice())
-	practice.Post("/submit", handlers.SubmitPractice())
-	practice.Get("/history", handlers.GetPracticeHistory())
-	practice.Get("/statistics", handlers.GetPracticeStatisticsUser())
-	practice.Get("/:id", handlers.ShowPracticeSession())
-
-	videos := protected.Group("/videos")
-	videos.Get("", handlers.GetAllVideos())
-	videos.Get("/:id", handlers.GetVideoByID())
-	videos.Post("/:id/order", handlers.CreateVideoOrder())
-	videos.Post("/:id/pay/:orderId", handlers.SimulateVideoPayment())
-
-	protected.Post("/testimonials", handlers.CreateTestimonial())
-	protected.Get("/testimonials/my", handlers.GetUserTestimonial())
-
-	admin := protected.Group("/admin")
-	admin.Use(middleware.AdminOnly())
-
-	admin.Get("/dashboard", handlers.AdminDashboard())
-
-	admin.Get("/users", handlers.GetAllUsers())
-	admin.Get("/users/:id", handlers.GetUserByID())
-	admin.Post("/users/:id/toggle-active", handlers.ToggleUserActive())
-	admin.Get("/login-logs", handlers.GetLoginLogs())
-
-	admin.Get("/packages", handlers.GetAllPackagesAdmin())
-	admin.Post("/packages", handlers.CreatePackage())
-	admin.Get("/packages/:id", handlers.GetPackageByID())
-	admin.Put("/packages/:id", handlers.UpdatePackage())
-	admin.Delete("/packages/:id", handlers.DeletePackage())
-	admin.Post("/packages/:id/cards", handlers.AddCardToPackage())
-	admin.Delete("/packages/:id/cards/:cardId", handlers.RemoveCardFromPackage())
-	admin.Post("/packages/:id/import-pdf", handlers.ImportQuestionsPDF())
-
-	admin.Get("/orders", handlers.AdminIndexOrders())
-	admin.Get("/orders/:id", handlers.AdminShowOrder())
-	admin.Post("/orders/:id/verify", handlers.AdminVerifyOrder())
-
-	admin.Get("/transactions", handlers.GetAllTransactions())
-	admin.Get("/transactions/stats", handlers.GetTransactionStats())
-	admin.Get("/transactions/:id", handlers.ShowTransaction())
-
-	admin.Get("/enroll-keys", handlers.GetEnrollKeys())
-	admin.Get("/enroll-keys/:id", handlers.ShowEnrollKey())
-
-	admin.Get("/practice-statistics", handlers.GetPracticeStatisticsAdmin())
-	admin.Get("/practice-statistics/:id", handlers.ShowPracticeStatistics())
-
-	admin.Get("/reports", handlers.AdminIndexReports())
-
-	admin.Get("/testimonials", handlers.AdminIndexTestimonials())
-	admin.Post("/testimonials/:id/approve", handlers.AdminApproveTestimonial())
-	admin.Post("/testimonials/:id/toggle-active", handlers.AdminToggleTestimonialActive())
-	admin.Delete("/testimonials/:id", handlers.AdminDeleteTestimonial())
-	admin.Post("/testimonials/bulk-delete", handlers.AdminBulkDeleteTestimonials())
-
-	admin.Get("/support", handlers.AdminIndexSupport())
-	admin.Get("/support/:id", handlers.AdminShowSupport())
-	admin.Post("/support/:id/answer", handlers.AdminAnswerSupport())
-	admin.Put("/support/:id/status", handlers.AdminUpdateSupportStatus())
-	admin.Delete("/support/:id", handlers.AdminDeleteSupport())
-
-	admin.Get("/kontak-form", handlers.AdminIndexContactForms())
-	admin.Get("/kontak-form/:id", handlers.AdminShowContactForm())
-	admin.Post("/kontak-form/:id/reply", handlers.AdminReplyContactForm())
-	admin.Put("/kontak-form/:id/status", handlers.AdminUpdateContactStatus())
-	admin.Delete("/kontak-form/:id", handlers.AdminDeleteContactForm())
-
-	admin.Get("/videos", handlers.GetAllVideos())
-	admin.Post("/videos", handlers.CreateVideo())
-	admin.Get("/videos/:id", handlers.GetVideoByID())
-	admin.Put("/videos/:id", handlers.UpdateVideo())
-	admin.Delete("/videos/:id", handlers.DeleteVideo())
-	admin.Post("/videos/:id/toggle", handlers.ToggleVideoActive())
-
-	admin.Get("/video-orders", handlers.GetVideoOrdersAdmin())
-	admin.Post("/video-orders/:id/grant", handlers.AdminGrantVideoAccess())
-
-	admin.Get("/notifications", handlers.AdminIndexNotifications())
-
-	api.Get("/payment/notification", func(c *fiber.Ctx) error {
+	api.Post("/payment/notification", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
 	})
+
+	authGroup := api.Group("/auth")
+	authGroup.Post("/register", handlers.Register(cfg))
+	authGroup.Post("/login", handlers.Login(cfg))
+	authGroup.Post("/refresh-token", handlers.RefreshToken(cfg))
+	authGroup.Post("/forgot-password", handlers.ForgotPassword(cfg))
+	authGroup.Post("/reset-password", handlers.ResetPassword(cfg))
+	authGroup.Post("/logout", auth, handlers.Logout(cfg))
+
+	api.Get("/profile", auth, handlers.GetProfile())
+	api.Put("/profile", auth, handlers.UpdateProfile())
+	api.Put("/profile/change-password", auth, handlers.ChangePassword())
+
+	api.Get("/dashboard", auth, handlers.UserDashboard())
+
+	api.Get("/notifications", auth, handlers.GetUserNotifications())
+	api.Get("/notifications/unread-count", auth, handlers.GetUnreadNotificationCount())
+	api.Post("/notifications/:id/read", auth, handlers.MarkNotificationRead())
+	api.Post("/notifications/read-all", auth, handlers.MarkAllNotificationsRead())
+
+	api.Get("/kontak-form", auth, handlers.GetContactForms())
+	api.Get("/kontak-form/:id", auth, handlers.GetContactFormByID())
+
+	api.Post("/orders", auth, handlers.CreateOrder())
+	api.Get("/orders", auth, handlers.GetUserOrders())
+	api.Get("/orders/status", auth, handlers.PaymentStatus())
+	api.Get("/orders/:id", auth, handlers.GetOrderByID())
+	api.Post("/orders/:id/pay", auth, handlers.SimulatePayment())
+
+	api.Post("/practice/start", auth, handlers.StartPractice())
+	api.Post("/practice/submit", auth, handlers.SubmitPractice())
+	api.Get("/practice/history", auth, handlers.GetPracticeHistory())
+	api.Get("/practice/statistics", auth, handlers.GetPracticeStatisticsUser())
+	api.Get("/practice/:id", auth, handlers.ShowPracticeSession())
+
+	api.Post("/videos/:id/order", auth, handlers.CreateVideoOrder())
+	api.Post("/videos/:id/pay/:orderId", auth, handlers.SimulateVideoPayment())
+
+	api.Post("/testimonials", auth, handlers.CreateTestimonial())
+	api.Get("/testimonials/my", auth, handlers.GetUserTestimonial())
+
+	adminRoutes := api.Group("/admin", auth, admin)
+
+	adminRoutes.Get("/dashboard", handlers.AdminDashboard())
+
+	adminRoutes.Get("/users", handlers.GetAllUsers())
+	adminRoutes.Get("/users/:id", handlers.GetUserByID())
+	adminRoutes.Post("/users/:id/toggle-active", handlers.ToggleUserActive())
+	adminRoutes.Get("/login-logs", handlers.GetLoginLogs())
+
+	adminRoutes.Get("/packages", handlers.GetAllPackagesAdmin())
+	adminRoutes.Post("/packages", handlers.CreatePackage())
+	adminRoutes.Get("/packages/:id", handlers.GetPackageByID())
+	adminRoutes.Put("/packages/:id", handlers.UpdatePackage())
+	adminRoutes.Delete("/packages/:id", handlers.DeletePackage())
+	adminRoutes.Post("/packages/:id/cards", handlers.AddCardToPackage())
+	adminRoutes.Delete("/packages/:id/cards/:cardId", handlers.RemoveCardFromPackage())
+	adminRoutes.Post("/packages/:id/import-pdf", handlers.ImportQuestionsPDF())
+
+	adminRoutes.Get("/orders", handlers.AdminIndexOrders())
+	adminRoutes.Get("/orders/:id", handlers.AdminShowOrder())
+	adminRoutes.Post("/orders/:id/verify", handlers.AdminVerifyOrder())
+
+	adminRoutes.Get("/transactions", handlers.GetAllTransactions())
+	adminRoutes.Get("/transactions/stats", handlers.GetTransactionStats())
+	adminRoutes.Get("/transactions/:id", handlers.ShowTransaction())
+
+	adminRoutes.Get("/enroll-keys", handlers.GetEnrollKeys())
+	adminRoutes.Get("/enroll-keys/:id", handlers.ShowEnrollKey())
+
+	adminRoutes.Get("/practice-statistics", handlers.GetPracticeStatisticsAdmin())
+	adminRoutes.Get("/practice-statistics/:id", handlers.ShowPracticeStatistics())
+
+	adminRoutes.Get("/reports", handlers.AdminIndexReports())
+
+	adminRoutes.Get("/testimonials", handlers.AdminIndexTestimonials())
+	adminRoutes.Post("/testimonials/:id/approve", handlers.AdminApproveTestimonial())
+	adminRoutes.Post("/testimonials/:id/toggle-active", handlers.AdminToggleTestimonialActive())
+	adminRoutes.Delete("/testimonials/:id", handlers.AdminDeleteTestimonial())
+	adminRoutes.Post("/testimonials/bulk-delete", handlers.AdminBulkDeleteTestimonials())
+
+	adminRoutes.Get("/support", handlers.AdminIndexSupport())
+	adminRoutes.Get("/support/:id", handlers.AdminShowSupport())
+	adminRoutes.Post("/support/:id/answer", handlers.AdminAnswerSupport())
+	adminRoutes.Put("/support/:id/status", handlers.AdminUpdateSupportStatus())
+	adminRoutes.Delete("/support/:id", handlers.AdminDeleteSupport())
+
+	adminRoutes.Get("/kontak-form", handlers.AdminIndexContactForms())
+	adminRoutes.Get("/kontak-form/:id", handlers.AdminShowContactForm())
+	adminRoutes.Post("/kontak-form/:id/reply", handlers.AdminReplyContactForm())
+	adminRoutes.Put("/kontak-form/:id/status", handlers.AdminUpdateContactStatus())
+	adminRoutes.Delete("/kontak-form/:id", handlers.AdminDeleteContactForm())
+
+	adminRoutes.Get("/videos", handlers.GetAllVideos())
+	adminRoutes.Post("/videos", handlers.CreateVideo())
+	adminRoutes.Get("/videos/:id", handlers.GetVideoByID())
+	adminRoutes.Put("/videos/:id", handlers.UpdateVideo())
+	adminRoutes.Delete("/videos/:id", handlers.DeleteVideo())
+	adminRoutes.Post("/videos/:id/toggle", handlers.ToggleVideoActive())
+
+	adminRoutes.Get("/video-orders", handlers.GetVideoOrdersAdmin())
+	adminRoutes.Post("/video-orders/:id/grant", handlers.AdminGrantVideoAccess())
+
+	adminRoutes.Get("/notifications", handlers.AdminIndexNotifications())
 }

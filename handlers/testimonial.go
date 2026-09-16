@@ -41,7 +41,10 @@ func GetPublicTestimonials() fiber.Handler {
 
 func CreateTestimonial() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 
 		var req models.CreateTestimonialRequest
@@ -53,12 +56,12 @@ func CreateTestimonial() fiber.Handler {
 		}
 
 		rating := req.Rating
-		if rating == 0 {
+		if rating < 1 || rating > 5 {
 			rating = 5
 		}
 
 		testimonial := models.Testimonial{
-			UserID:  userID,
+			UserID:  uid,
 			Content: req.Content,
 			Rating:  rating,
 		}
@@ -73,10 +76,13 @@ func CreateTestimonial() fiber.Handler {
 
 func GetUserTestimonial() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID := c.Locals("user_id").(uuid.UUID)
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 		var testimonial models.Testimonial
-		if result := db.Where("user_id = ?", userID).Order("created_at DESC").First(&testimonial); result.Error != nil {
+		if result := db.Where("user_id = ?", uid).Order("created_at DESC").First(&testimonial); result.Error != nil {
 			return utils.NotFoundResponse(c, "No testimonial found")
 		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Testimonial retrieved", testimonial)
@@ -117,7 +123,9 @@ func AdminApproveTestimonial() fiber.Handler {
 		now := time.Now()
 		testimonial.IsApproved = true
 		testimonial.ApprovedAt = &now
-		db.Save(&testimonial)
+		if result := db.Save(&testimonial); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to approve testimonial")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Testimonial approved", testimonial)
 	}
@@ -135,7 +143,9 @@ func AdminToggleTestimonialActive() fiber.Handler {
 			return utils.NotFoundResponse(c, "Testimonial not found")
 		}
 		testimonial.IsActive = !testimonial.IsActive
-		db.Save(&testimonial)
+		if result := db.Save(&testimonial); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to toggle testimonial status")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Testimonial status toggled", testimonial)
 	}
 }
@@ -151,7 +161,9 @@ func AdminDeleteTestimonial() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&testimonial); result.Error != nil {
 			return utils.NotFoundResponse(c, "Testimonial not found")
 		}
-		db.Delete(&testimonial)
+		if result := db.Delete(&testimonial); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete testimonial")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Testimonial deleted", nil)
 	}
 }
@@ -162,8 +174,23 @@ func AdminBulkDeleteTestimonials() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
 		}
+		if len(req.IDs) == 0 {
+			return utils.BadRequestResponse(c, "IDs are required", nil)
+		}
+
+		var uuids []uuid.UUID
+		for _, idStr := range req.IDs {
+			id, err := uuid.Parse(idStr)
+			if err != nil {
+				return utils.BadRequestResponse(c, "Invalid ID: "+idStr, nil)
+			}
+			uuids = append(uuids, id)
+		}
+
 		db := database.GetDB()
-		db.Where("id IN ?", req.IDs).Delete(&models.Testimonial{})
+		if result := db.Where("id IN ?", uuids).Delete(&models.Testimonial{}); result.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to delete testimonials")
+		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Testimonials deleted", nil)
 	}
 }

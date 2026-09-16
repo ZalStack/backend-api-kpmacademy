@@ -23,8 +23,13 @@ func Connect(cfg *config.Config) {
 		cfg.DB.Name,
 	)
 
+	logMode := logger.Silent
+	if cfg.App.Debug {
+		logMode = logger.Info
+	}
+
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logMode),
 	})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)

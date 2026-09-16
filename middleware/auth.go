@@ -37,30 +37,35 @@ func AuthProtected(cfg *config.Config) fiber.Handler {
 
 func AdminOnly() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		role, ok := c.Locals("user_role").(string)
-		if !ok || role != "admin" {
+		if !utils.IsAdmin(c) {
 			return utils.ForbiddenResponse(c, "Admin access required")
 		}
 		return c.Next()
 	}
 }
 
-func InstructorOrAdmin() fiber.Handler {
+func OptionalAuth(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		role, ok := c.Locals("user_role").(string)
-		if !ok || (role != "admin" && role != "instructor") {
-			return utils.ForbiddenResponse(c, "Instructor or admin access required")
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Next()
 		}
-		return c.Next()
-	}
-}
 
-func StudentOnly() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		role, ok := c.Locals("user_role").(string)
-		if !ok || role != "student" {
-			return utils.ForbiddenResponse(c, "Student access required")
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			return c.Next()
 		}
+
+		tokenString := parts[1]
+		claims, err := utils.ValidateAccessToken(tokenString, &cfg.JWT)
+		if err != nil {
+			return c.Next()
+		}
+
+		c.Locals("user_id", claims.UserID)
+		c.Locals("user_email", claims.Email)
+		c.Locals("user_role", claims.Role)
+
 		return c.Next()
 	}
 }

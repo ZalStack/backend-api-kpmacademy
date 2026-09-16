@@ -12,9 +12,9 @@ type LoginLog struct {
 	UserID    uuid.UUID `gorm:"type:char(36);not null" json:"user_id"`
 	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	IPAddress string    `gorm:"type:varchar(45)" json:"ip_address"`
-	UserAgent string    `gorm:"type:text" json:"user_agent"`
+	UserAgent string    `gorm:"type:text" json:"user_agent"` 
 	Location  string    `gorm:"type:varchar(255)" json:"location"`
-	LoginAt   time.Time `json:"login_at"`
+	LoginAt   time.Time `json:"login_at"`	
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
