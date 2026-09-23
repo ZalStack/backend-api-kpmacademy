@@ -13,14 +13,18 @@ import (
 
 func GetContactForms() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		db := database.GetDB()
 		page, perPage, offset := utils.GetPagination(c)
 
 		var total int64
-		db.Model(&models.ContactForm{}).Count(&total)
+		db.Model(&models.ContactForm{}).Where("user_id = ?", uid).Count(&total)
 
 		var forms []models.ContactForm
-		if result := db.Offset(offset).Limit(perPage).Order("created_at DESC").Find(&forms); result.Error != nil {
+		if result := db.Where("user_id = ?", uid).Offset(offset).Limit(perPage).Order("created_at DESC").Find(&forms); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to retrieve contact forms")
 		}
 
@@ -69,13 +73,17 @@ func CreateContactForm() fiber.Handler {
 
 func GetContactFormByID() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		id, err := uuid.Parse(c.Params("id"))
 		if err != nil {
 			return utils.BadRequestResponse(c, "Invalid form ID", nil)
 		}
 		db := database.GetDB()
 		var form models.ContactForm
-		if result := db.Where("id = ?", id).First(&form); result.Error != nil {
+		if result := db.Where("id = ? AND user_id = ?", id, uid).First(&form); result.Error != nil {
 			return utils.NotFoundResponse(c, "Contact form not found")
 		}
 		return utils.SuccessResponse(c, fiber.StatusOK, "Contact form retrieved", form)
@@ -117,7 +125,7 @@ func AdminShowContactForm() fiber.Handler {
 		if result := db.Preload("User").Where("id = ?", id).First(&form); result.Error != nil {
 			return utils.NotFoundResponse(c, "Contact form not found")
 		}
-		if form.ReadAt == nil {
+		if form.ReadAt == nil && form.Status == "pending" {
 			now := time.Now()
 			form.ReadAt = &now
 			form.Status = "read"
@@ -259,6 +267,10 @@ func SendChatMessage() fiber.Handler {
 
 func GetChatHistory() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
 		sessionID := c.Query("session_id")
 		if sessionID == "" {
 			return utils.BadRequestResponse(c, "session_id is required", nil)
@@ -266,7 +278,7 @@ func GetChatHistory() fiber.Handler {
 		db := database.GetDB()
 
 		var messages []models.ChatMessage
-		if result := db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages); result.Error != nil {
+		if result := db.Where("session_id = ? AND user_id = ?", sessionID, uid).Order("created_at ASC").Find(&messages); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to retrieve chat history")
 		}
 

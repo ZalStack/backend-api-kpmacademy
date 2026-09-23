@@ -12,6 +12,7 @@ type APIResponse struct {
 	Data       interface{} `json:"data,omitempty"`
 	Errors     interface{} `json:"errors,omitempty"`
 	Pagination *Pagination `json:"pagination,omitempty"`
+	RequestID  string      `json:"request_id,omitempty"`
 }
 
 type Pagination struct {
@@ -21,11 +22,22 @@ type Pagination struct {
 	LastPage    int   `json:"last_page"`
 }
 
+func safeRequestID(c *fiber.Ctx) string {
+	if c == nil {
+		return ""
+	}
+	if id, ok := c.Locals("request_id").(string); ok {
+		return id
+	}
+	return ""
+}
+
 func SuccessResponse(c *fiber.Ctx, statusCode int, message string, data interface{}) error {
 	return c.Status(statusCode).JSON(APIResponse{
-		Success: true,
-		Message: message,
-		Data:    data,
+		Success:   true,
+		Message:   message,
+		Data:      data,
+		RequestID: safeRequestID(c),
 	})
 }
 
@@ -35,14 +47,16 @@ func SuccessResponseWithPagination(c *fiber.Ctx, message string, data interface{
 		Message:    message,
 		Data:       data,
 		Pagination: pagination,
+		RequestID:  safeRequestID(c),
 	})
 }
 
 func ErrorResponse(c *fiber.Ctx, statusCode int, message string, errors interface{}) error {
 	return c.Status(statusCode).JSON(APIResponse{
-		Success: false,
-		Message: message,
-		Errors:  errors,
+		Success:   false,
+		Message:   message,
+		Errors:    errors,
+		RequestID: safeRequestID(c),
 	})
 }
 

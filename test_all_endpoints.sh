@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE="http://localhost:3001/api"
+BASE="${API_BASE_URL:-http://localhost:3001/api}"
 PASS=0
 FAIL=0
 TOTAL=0
@@ -15,6 +15,16 @@ SUPPORT_ID=""
 CONTACT_ID=""
 TESTIMONIAL_ID=""
 SESSION_ID=""
+
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs) 2>/dev/null
+fi
+
+DB_USER="${DB_USER:-root}"
+DB_PASSWORD="${DB_PASSWORD:-Fakhrizal2005}"
+DB_NAME="${DB_NAME:-kpm_academy}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@kpmacademy.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123!}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -55,13 +65,29 @@ echo -e "${BOLD}${CYAN}║   KPM ACADEMY API - COMPLETE ENDPOINT TEST       ║$
 echo -e "${BOLD}${CYAN}║   $(date '+%Y-%m-%d %H:%M:%S')                          ║${NC}"
 echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
 
+# ── Pre-test DB cleanup ───────────────────────────────────────────────────────
+# Delete the test user and all related data from any previous test run.
+# This ensures every run starts with a clean slate (fresh password, active status, etc.)
+echo -e "\n${BOLD}Cleaning up test data from previous runs...${NC}"
+mysql -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" 2>/dev/null <<'SQL'
+SET FOREIGN_KEY_CHECKS = 0;
+DELETE FROM login_logs WHERE user_id IN (SELECT id FROM users WHERE email='testuser@test.com');
+DELETE FROM orders WHERE user_id IN (SELECT id FROM users WHERE email='testuser@test.com');
+DELETE FROM video_orders WHERE user_id IN (SELECT id FROM users WHERE email='testuser@test.com');
+DELETE FROM practice_sessions WHERE user_id IN (SELECT id FROM users WHERE email='testuser@test.com');
+DELETE FROM password_reset_tokens WHERE email='testuser@test.com';
+DELETE FROM users WHERE email = 'testuser@test.com';
+SET FOREIGN_KEY_CHECKS = 1;
+SQL
+echo -e "${GREEN}Test user cleanup done.${NC}"
+
 # Kill any existing server on port 3001
 fuser -k 3001/tcp 2>/dev/null
 sleep 1
 
 # Start server on port 3001
 echo -e "\n${BOLD}Starting server on port 3001...${NC}"
-RATE_LIMIT=500 RATE_LIMIT_EXPIRATION=60 APP_PORT=3001 go run . &>/tmp/server.log &
+RATE_LIMIT=500 RATE_LIMIT_EXPIRATION=60 APP_PORT=3001 APP_ENV=development go run . &>/tmp/server.log &
 SERVER_PID=$!
 sleep 4
 
@@ -74,8 +100,8 @@ fi
 echo -e "${GREEN}Server started (PID: $SERVER_PID)${NC}"
 
 # Verify DB was re-created with admin
-ADMIN_EMAIL=$(mysql -u root -pFakhrizal2005 -N -e "SELECT email FROM kpm_academy.users WHERE role='admin' LIMIT 1" 2>/dev/null)
-echo -e "Admin in DB: ${GREEN}$ADMIN_EMAIL${NC}"
+ADMIN_EMAIL_DB=$(mysql -u "$DB_USER" -p"$DB_PASSWORD" -N -e "SELECT email FROM ${DB_NAME}.users WHERE role='admin' LIMIT 1" 2>/dev/null)
+echo -e "Admin in DB: ${GREEN}$ADMIN_EMAIL_DB${NC}"
 
 cleanup() {
     echo -e "\n${BOLD}Shutting down server...${NC}"
@@ -145,7 +171,7 @@ fi
 section "3. AUTH - LOGIN"
 
 # Verify user first (auto-verify for testing)
-mysql -u root -pFakhrizal2005 -e "UPDATE kpm_academy.users SET is_verified=1 WHERE email='testuser@test.com'" 2>/dev/null
+mysql -u "$DB_USER" -p"$DB_PASSWORD" -e "UPDATE ${DB_NAME}.users SET is_verified=1 WHERE email='testuser@test.com'" 2>/dev/null
 
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE/auth/login" \
     -H "Content-Type: application/json" \
@@ -163,7 +189,7 @@ fi
 # Admin login
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"email":"admin@kpmacademy.com","password":"Admin123!"}')
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
 HTTP=$(echo "$RESP" | tail -1)
 BODY=$(echo "$RESP" | sed '$d')
 if [ "$HTTP" = "200" ]; then
@@ -1088,7 +1114,7 @@ else
 fi
 
 # Get test user ID
-TEST_USER_ID=$(mysql -u root -pFakhrizal2005 -N -e "SELECT id FROM kpm_academy.users WHERE email='testuser@test.com' LIMIT 1" 2>/dev/null)
+TEST_USER_ID=$(mysql -u "$DB_USER" -p"$DB_PASSWORD" -N -e "SELECT id FROM ${DB_NAME}.users WHERE email='testuser@test.com' LIMIT 1" 2>/dev/null)
 if [ -n "$TEST_USER_ID" ]; then
     RESP=$(curl -s -w "\n%{http_code}" "$BASE/admin/users/$TEST_USER_ID" \
         -H "Authorization: Bearer $ADMIN_TOKEN")
@@ -1318,7 +1344,7 @@ else
 fi
 
 # Get support ticket ID from DB
-SUPPORT_ID=$(mysql -u root -pFakhrizal2005 -N -e "SELECT id FROM kpm_academy.support_tickets LIMIT 1" 2>/dev/null)
+SUPPORT_ID=$(mysql -u "$DB_USER" -p"$DB_PASSWORD" -N -e "SELECT id FROM ${DB_NAME}.support_tickets LIMIT 1" 2>/dev/null)
 if [ -n "$SUPPORT_ID" ]; then
     RESP=$(curl -s -w "\n%{http_code}" "$BASE/admin/support/$SUPPORT_ID" \
         -H "Authorization: Bearer $ADMIN_TOKEN")
@@ -1382,7 +1408,7 @@ else
     log "GET /admin/kontak-form [list]" "FAIL" "[HTTP $HTTP] $BODY"
 fi
 
-CONTACT_ID=$(mysql -u root -pFakhrizal2005 -N -e "SELECT id FROM kpm_academy.contact_forms LIMIT 1" 2>/dev/null)
+CONTACT_ID=$(mysql -u "$DB_USER" -p"$DB_PASSWORD" -N -e "SELECT id FROM ${DB_NAME}.contact_forms LIMIT 1" 2>/dev/null)
 if [ -n "$CONTACT_ID" ]; then
     RESP=$(curl -s -w "\n%{http_code}" "$BASE/admin/kontak-form/$CONTACT_ID" \
         -H "Authorization: Bearer $ADMIN_TOKEN")

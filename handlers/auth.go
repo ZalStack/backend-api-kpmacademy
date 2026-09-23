@@ -26,34 +26,51 @@ func Register(cfg *config.Config) fiber.Handler {
 		}
 
 		db := database.GetDB()
+
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
 		var existing models.User
-		if result := db.Where("email = ?", req.Email).First(&existing); result.Error == nil {
+		if result := tx.Where("email = ?", req.Email).First(&existing); result.Error == nil {
+			tx.Rollback()
 			return utils.ConflictResponse(c, "Email already registered")
 		}
 
 		hashed, err := utils.HashPassword(req.Password)
 		if err != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to hash password")
 		}
 
 		user := models.User{
-			Name:     req.Name,
-			Email:    req.Email,
-			Password: hashed,
-			Phone:    req.Phone,
-			Role:     "user",
+			Name:       req.Name,
+			Email:      req.Email,
+			Password:   hashed,
+			Phone:      req.Phone,
+			Role:       "user",
+			IsVerified: true,
+			IsActive:   true,
 		}
-		if result := db.Create(&user); result.Error != nil {
+		if result := tx.Create(&user); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to create user")
 		}
 
 		tokens, err := utils.GenerateTokenPair(user.ID, user.Email, user.Role, &cfg.JWT)
 		if err != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to generate tokens")
 		}
 		user.RefreshToken = tokens.RefreshToken
-		if result := db.Save(&user); result.Error != nil {
+		if result := tx.Save(&user); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to save refresh token")
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete registration")
 		}
 
 		return utils.SuccessResponse(c, fiber.StatusCreated, "Registration successful", fiber.Map{
@@ -87,26 +104,38 @@ func Login(cfg *config.Config) fiber.Handler {
 			return utils.UnauthorizedResponse(c, "Invalid email or password")
 		}
 
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
 		now := time.Now()
 		user.LastLoginAt = &now
 
 		tokens, err := utils.GenerateTokenPair(user.ID, user.Email, user.Role, &cfg.JWT)
 		if err != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to generate tokens")
 		}
 		user.RefreshToken = tokens.RefreshToken
-		if result := db.Save(&user); result.Error != nil {
+		if result := tx.Save(&user); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to save user")
 		}
 
-		log := models.LoginLog{
+		loginLog := models.LoginLog{
 			UserID:    user.ID,
 			IPAddress: c.IP(),
 			UserAgent: c.Get("User-Agent"),
 			LoginAt:   now,
 		}
-		if result := db.Create(&log); result.Error != nil {
+		if result := tx.Create(&loginLog); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to log login")
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete login")
 		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Login successful", fiber.Map{
@@ -190,22 +219,41 @@ func ForgotPassword(cfg *config.Config) fiber.Handler {
 		}
 
 		tokenBytes := make([]byte, 32)
-		rand.Read(tokenBytes)
+		_, _ = rand.Read(tokenBytes) //nolint:errcheck // crypto/rand.Read never returns error on valid slice
 		token := hex.EncodeToString(tokenBytes)
+		tokenHash := utils.HashToken(token)
 
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
+		tx.Where("email = ?", req.Email).Delete(&models.PasswordResetToken{})
 		resetToken := models.PasswordResetToken{
 			Email:     req.Email,
-			TokenHash: token,
+			TokenHash: tokenHash,
 			ExpiresAt: time.Now().Add(1 * time.Hour),
 		}
-		db.Where("email = ?", req.Email).Delete(&models.PasswordResetToken{})
-		db.Create(&resetToken)
+		if result := tx.Create(&resetToken); result.Error != nil {
+			tx.Rollback()
+			return utils.InternalErrorResponse(c, "Failed to create reset token")
+		}
 
-		log.Printf("Password reset token for %s: %s (implement email sending in production)", req.Email, token)
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete password reset request")
+		}
 
-		return utils.SuccessResponse(c, fiber.StatusOK, "If the email exists, a reset link has been sent", fiber.Map{
-			"reset_token": token,
-		})
+		if cfg.App.Env == envProduction {
+			log.Printf("Password reset requested for %s (implement email sending)", req.Email)
+		} else {
+			log.Printf("Password reset token for %s: %s", req.Email, token)
+		}
+
+		var respData fiber.Map
+		if cfg.App.Env != envProduction {
+			respData = fiber.Map{"reset_token": token}
+		}
+		return utils.SuccessResponse(c, fiber.StatusOK, "If the email exists, a reset link has been sent", respData)
 	}
 }
 
@@ -220,28 +268,43 @@ func ResetPassword(cfg *config.Config) fiber.Handler {
 		}
 
 		db := database.GetDB()
+
+		tokenHash := utils.HashToken(req.Token)
+
 		var resetToken models.PasswordResetToken
 		if result := db.Where("email = ? AND token_hash = ? AND expires_at > ?",
-			req.Email, req.Token, time.Now()).First(&resetToken); result.Error != nil {
+			req.Email, tokenHash, time.Now()).First(&resetToken); result.Error != nil {
 			return utils.BadRequestResponse(c, "Invalid or expired reset token", nil)
+		}
+
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
 		}
 
 		hashed, err := utils.HashPassword(req.NewPassword)
 		if err != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to hash password")
 		}
 
 		var user models.User
-		if result := db.Where("email = ?", req.Email).First(&user); result.Error != nil {
+		if result := tx.Where("email = ?", req.Email).First(&user); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "User not found")
 		}
 		user.Password = hashed
 		user.RefreshToken = ""
-		if result := db.Save(&user); result.Error != nil {
+		if result := tx.Save(&user); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to reset password")
 		}
 
-		db.Where("email = ?", req.Email).Delete(&models.PasswordResetToken{})
+		tx.Where("email = ?", req.Email).Delete(&models.PasswordResetToken{})
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete password reset")
+		}
 
 		return utils.SuccessResponse(c, fiber.StatusOK, "Password reset successful", nil)
 	}

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPM Academy — Swagger UI</title>
+  <meta name="description" content="Swagger UI documentation for KPM Academy API.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css">
+  <style>
+    :root {
+      --kpm-topbar-h: 64px;
+      --kpm-bg: #06080f;
+      --kpm-surface: #0c1021;
+      --kpm-border: #1a2140;
+      --kpm-border-light: #243060;
+      --kpm-text: #f0f4ff;
+      --kpm-muted: #7a88b0;
+      --kpm-primary: #3b82f6;
+      --kpm-primary-light: #60a5fa;
+      --kpm-primary-glow: rgba(59, 130, 246, 0.3);
+      --kpm-success: #10b981;
+      --kpm-warning: #f59e0b;
+      --kpm-danger: #ef4444;
+      --kpm-purple: #8b5cf6;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      margin: 0;
+      padding-top: var(--kpm-topbar-h);
+      background: #f8fafc;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      opacity: 0;
+      animation: kpmPageLoad 0.6s ease-out 0.1s forwards;
+    }
+    @keyframes kpmPageLoad {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Topbar ───────────────────────────────────────────── */
+    .kpm-topbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--kpm-topbar-h);
+      background: rgba(6, 8, 15, 0.78);
+      backdrop-filter: blur(24px) saturate(1.6);
+      -webkit-backdrop-filter: blur(24px) saturate(1.6);
+      border-bottom: 1px solid rgba(26, 33, 64, 0.6);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px; z-index: 999999;
+      transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+    }
+    .kpm-topbar.scrolled {
+      background: rgba(6, 8, 15, 0.94);
+      border-bottom-color: var(--kpm-border);
+      box-shadow: 0 1px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    /* ── Brand ────────────────────────────────────────────── */
+    .kpm-brand { display: flex; align-items: center; gap: 14px; }
+    .kpm-brand-link {
+      display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--kpm-text);
+    }
+    .kpm-logo-icon {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed, #ec4899);
+      border-radius: 11px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45);
+      animation: kpmFloat 3s ease-in-out infinite;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      flex-shrink: 0;
+    }
+    .kpm-logo-icon:hover {
+      transform: translateY(-1px) scale(1.04);
+      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.55);
+    }
+    @keyframes kpmFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+    .kpm-brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .kpm-title { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; color: #fff; }
+    .kpm-subtitle { font-size: 11px; color: var(--kpm-muted); font-weight: 500; letter-spacing: 0.02em; }
+
+    /* ── Desktop Nav ──────────────────────────────────────── */
+    .kpm-nav { display: flex; align-items: center; gap: 4px; }
+    .kpm-nav-btn {
+      display: flex; align-items: center; gap: 7px;
+      text-decoration: none; font-size: 13px; font-weight: 500;
+      color: var(--kpm-muted); padding: 8px 14px; border-radius: 8px;
+      transition: all 0.22s ease; white-space: nowrap;
+    }
+    .kpm-nav-btn svg { flex-shrink: 0; }
+    .kpm-nav-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+    .kpm-nav-btn.active {
+      color: #fff; background: var(--kpm-primary); font-weight: 600;
+      box-shadow: 0 2px 14px var(--kpm-primary-glow);
+    }
+    .kpm-sep { width: 1px; height: 22px; background: var(--kpm-border); margin: 0 10px; flex-shrink: 0; }
+    .kpm-specs { display: flex; align-items: center; gap: 6px; }
+    .kpm-spec-link {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px; font-weight: 600; color: #94a3c8;
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 5px 11px; border-radius: 7px; text-decoration: none; transition: all 0.22s;
+      white-space: nowrap;
+    }
+    .kpm-spec-link:hover {
+      background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #fff;
+    }
+
+    /* ── Hamburger ────────────────────────────────────────── */
+    .kpm-hamburger {
+      display: none; background: none; border: none; cursor: pointer;
+      padding: 8px; border-radius: 8px; transition: background 0.2s;
+    }
+    .kpm-hamburger:hover { background: rgba(255, 255, 255, 0.07); }
+    .kpm-hamburger svg { display: block; }
+
+    /* ── Mobile Overlay ───────────────────────────────────── */
+    .kpm-mobile-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.55); z-index: 999998;
+      opacity: 0; transition: opacity 0.35s ease;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    .kpm-mobile-overlay.open { display: block; opacity: 1; }
+
+    /* ── Mobile Drawer ────────────────────────────────────── */
+    .kpm-mobile-drawer {
+      position: fixed; top: 0; right: 0;
+      width: 300px; max-width: 85vw; height: 100vh; height: 100dvh;
+      background: var(--kpm-surface);
+      border-left: 1px solid var(--kpm-border); z-index: 999999;
+      padding: 28px 24px 32px;
+      transform: translateX(100%);
+      transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+      overflow-y: auto; overscroll-behavior: contain;
+    }
+    .kpm-mobile-drawer.open { transform: translateX(0); }
+    .kpm-mobile-drawer-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 24px; border-bottom: 1px solid var(--kpm-border); margin-bottom: 20px;
+    }
+    .kpm-mobile-drawer-title {
+      font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.01em;
+    }
+    .kpm-mobile-drawer-close {
+      background: none; border: none; color: var(--kpm-muted);
+      cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .kpm-mobile-drawer-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .kpm-mobile-nav { display: flex; flex-direction: column; gap: 4px; }
+    .kpm-mobile-nav a {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; font-size: 14px; font-weight: 500;
+      color: var(--kpm-muted); padding: 13px 16px; border-radius: 10px; transition: all 0.22s;
+    }
+    .kpm-mobile-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+    .kpm-mobile-nav a.active {
+      color: #fff; background: var(--kpm-primary); font-weight: 600;
+      box-shadow: 0 2px 12px var(--kpm-primary-glow);
+    }
+    .kpm-mobile-specs {
+      margin-top: 24px; padding-top: 20px;
+      border-top: 1px solid var(--kpm-border); display: flex; gap: 8px;
+    }
+    .kpm-mobile-specs a {
+      flex: 1; text-align: center; text-decoration: none;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px; font-weight: 600; color: var(--kpm-muted);
+      padding: 11px; border-radius: 9px;
+      background: rgba(255, 255, 255, 0.03); border: 1px solid var(--kpm-border); transition: all 0.22s;
+    }
+    .kpm-mobile-specs a:hover { color: #fff; border-color: var(--kpm-primary); background: rgba(59, 130, 246, 0.08); }
+
+    @media (max-width: 768px) {
+      .kpm-nav, .kpm-sep, .kpm-specs { display: none !important; }
+      .kpm-hamburger { display: flex; align-items: center; justify-content: center; }
+    }
+
+    /* ── Swagger UI Overrides ─────────────────────────────── */
+    .swagger-ui .topbar { display: none !important; }
+    .swagger-ui {
+      max-width: 1400px; margin: 0 auto;
+      padding: 28px 20px 100px;
+    }
+    .swagger-ui .info { margin: 20px 0; }
+    .swagger-ui .info .title { font-family: "Inter", sans-serif; }
+    .swagger-ui .scheme-container {
+      background: #fff; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Authorize button */
+    .swagger-ui .btn.authorize {
+      color: #fff; border-color: var(--kpm-primary); background: var(--kpm-primary);
+      border-radius: 8px; font-family: "Inter", sans-serif; font-weight: 600;
+      transition: all 0.22s ease;
+    }
+    .swagger-ui .btn.authorize:hover {
+      background: #2563eb; box-shadow: 0 2px 12px var(--kpm-primary-glow);
+    }
+    .swagger-ui .btn.authorize svg { fill: #fff; }
+    .swagger-ui .btn.authorize.unlocked {
+      background: transparent; color: var(--kpm-primary);
+    }
+    .swagger-ui .btn.authorize.unlocked:hover {
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    /* Operation blocks */
+    .swagger-ui .opblock {
+      border-radius: 10px; border: 1px solid #e2e8f0;
+      margin-bottom: 12px; transition: box-shadow 0.22s ease;
+    }
+    .swagger-ui .opblock:hover { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06); }
+    .swagger-ui .opblock .opblock-summary { border-radius: 10px; }
+    .swagger-ui .opblock .opblock-summary-method {
+      border-radius: 8px; font-family: "JetBrains Mono", monospace;
+      font-weight: 600; font-size: 12px; min-width: 70px; text-align: center;
+      padding: 6px 0;
+    }
+    .swagger-ui .opblock .opblock-summary-path,
+    .swagger-ui .opblock .opblock-summary-path__deprecated {
+      font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 500;
+    }
+
+    /* Method badges — refined colors */
+    .swagger-ui .opblock.opblock-get { border-color: #bfdbfe; background: #eff6ff; }
+    .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #3b82f6; color: #fff; }
+    .swagger-ui .opblock.opblock-get .opblock-summary { border-color: #bfdbfe; }
+
+    .swagger-ui .opblock.opblock-post { border-color: #bbf7d0; background: #f0fdf4; }
+    .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #10b981; color: #fff; }
+    .swagger-ui .opblock.opblock-post .opblock-summary { border-color: #bbf7d0; }
+
+    .swagger-ui .opblock.opblock-put { border-color: #fde68a; background: #fffbeb; }
+    .swagger-ui .opblock.opblock-put .opblock-summary-method { background: #f59e0b; color: #fff; }
+    .swagger-ui .opblock.opblock-put .opblock-summary { border-color: #fde68a; }
+
+    .swagger-ui .opblock.opblock-patch { border-color: #ddd6fe; background: #f5f3ff; }
+    .swagger-ui .opblock.opblock-patch .opblock-summary-method { background: #8b5cf6; color: #fff; }
+    .swagger-ui .opblock.opblock-patch .opblock-summary { border-color: #ddd6fe; }
+
+    .swagger-ui .opblock.opblock-delete { border-color: #fecaca; background: #fef2f2; }
+    .swagger-ui .opblock.opblock-delete .opblock-summary-method { background: #ef4444; color: #fff; }
+    .swagger-ui .opblock.opblock-delete .opblock-summary { border-color: #fecaca; }
+
+    .swagger-ui .opblock.opblock-head { border-color: #e0e7ff; background: #eef2ff; }
+    .swagger-ui .opblock.opblock-head .opblock-summary-method { background: #6366f1; color: #fff; }
+    .swagger-ui .opblock.opblock-head .opblock-summary { border-color: #e0e7ff; }
+
+    .swagger-ui .opblock.opblock-options { border-color: #e0e7ff; background: #eef2ff; }
+    .swagger-ui .opblock.opblock-options .opblock-summary-method { background: #6366f1; color: #fff; }
+
+    /* Expanded opblock body */
+    .swagger-ui .opblock-body { font-family: "Inter", sans-serif; }
+    .swagger-ui .opblock-body table thead tr th,
+    .swagger-ui .opblock-body table tbody tr td {
+      font-family: "Inter", sans-serif; font-size: 13px;
+    }
+    .swagger-ui .opblock-body code,
+    .swagger-ui .opblock-body pre {
+      font-family: "JetBrains Mono", monospace; font-size: 12.5px;
+    }
+
+    /* Models / Schemas */
+    .swagger-ui .model-box {
+      background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;
+    }
+    .swagger-ui section.models { border: 1px solid #e2e8f0; border-radius: 12px; }
+    .swagger-ui section.models h4 { font-family: "Inter", sans-serif; font-weight: 700; }
+    .swagger-ui .model-title { font-family: "Inter", sans-serif; }
+
+    /* Parameter tables */
+    .swagger-ui table thead tr th,
+    .swagger-ui table tbody tr td {
+      font-family: "Inter", sans-serif; font-size: 13px;
+    }
+
+    /* Response section */
+    .swagger-ui .responses-inner h4,
+    .swagger-ui .responses-inner h5 {
+      font-family: "Inter", sans-serif;
+    }
+
+    /* Execute button */
+    .swagger-ui .btn.execute {
+      background: var(--kpm-primary); color: #fff; border: none;
+      border-radius: 8px; font-family: "Inter", sans-serif; font-weight: 600;
+      padding: 8px 20px; transition: all 0.22s ease;
+    }
+    .swagger-ui .btn.execute:hover {
+      background: #2563eb; box-shadow: 0 2px 12px var(--kpm-primary-glow);
+    }
+
+    /* Clear button */
+    .swagger-ui .btn取消 {
+      border-radius: 8px; font-family: "Inter", sans-serif;
+    }
+
+    /* Server dropdown */
+    .swagger-ui .servers { margin-bottom: 16px; }
+    .swagger-ui .servers label { font-family: "Inter", sans-serif; font-weight: 600; }
+    .swagger-ui .servers select {
+      border-radius: 8px; font-family: "Inter", sans-serif; padding: 6px 12px;
+      border: 1px solid #d1d5db; transition: border-color 0.2s;
+    }
+    .swagger-ui .servers select:focus { border-color: var(--kpm-primary); outline: none; box-shadow: 0 0 0 3px var(--kpm-primary-glow); }
+
+    /* Scrollbar */
+    .swagger-ui ::-webkit-scrollbar { width: 8px; height: 8px; }
+    .swagger-ui ::-webkit-scrollbar-track { background: transparent; }
+    .swagger-ui ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .swagger-ui ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Wrapper for Swagger content */
+    .swagger-ui-wrapper {
+      max-width: 1400px; margin: 0 auto; padding: 28px 20px 100px;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .swagger-ui { padding: 16px 12px 80px; }
+      .swagger-ui .opblock .opblock-summary { flex-wrap: wrap; }
+      .swagger-ui .opblock .opblock-summary-method { min-width: 60px; font-size: 11px; }
+      .swagger-ui .opblock .opblock-summary-path { font-size: 12px; word-break: break-all; }
+    }
+
+    /* ── Topbar mobile padding ────────────────────────────── */
+    @media (max-width: 768px) {
+      .kpm-topbar { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Topbar ──────────────────────────────────────────── -->
+  <header class="kpm-topbar" id="kpmTopbar">
+    <div class="kpm-brand">
+      <a href="/docs" class="kpm-brand-link">
+        <div class="kpm-logo-icon">&#x1F393;</div>
+        <div class="kpm-brand-text">
+          <span class="kpm-title">KPM Academy</span>
+          <span class="kpm-subtitle">API Documentation</span>
+        </div>
+      </a>
+    </div>
+
+    <nav class="kpm-nav">
+      <a href="/docs" class="kpm-nav-btn">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/>
+        </svg>
+        Overview
+      </a>
+      <a href="/docs/scalar" class="kpm-nav-btn">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Reference (Scalar)
+      </a>
+      <a href="/docs/swagger" class="kpm-nav-btn active">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Swagger
+      </a>
+      <a href="/docs/redoc" class="kpm-nav-btn">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        Redoc
+      </a>
+      <div class="kpm-sep"></div>
+      <div class="kpm-specs">
+        <a href="/docs/swagger.yaml" target="_blank" class="kpm-spec-link" title="OpenAPI YAML Spec">YAML</a>
+        <a href="/docs/openapi.json" target="_blank" class="kpm-spec-link" title="OpenAPI JSON Spec">JSON</a>
+      </div>
+    </nav>
+
+    <button class="kpm-hamburger" id="kpmHamburger" aria-label="Open menu">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ── Mobile Overlay ──────────────────────────────────── -->
+  <div class="kpm-mobile-overlay" id="kpmOverlay"></div>
+
+  <!-- ── Mobile Drawer ───────────────────────────────────── -->
+  <div class="kpm-mobile-drawer" id="kpmDrawer">
+    <div class="kpm-mobile-drawer-header">
+      <span class="kpm-mobile-drawer-title">Menu</span>
+      <button class="kpm-mobile-drawer-close" id="kpmDrawerClose" aria-label="Close menu">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <nav class="kpm-mobile-nav">
+      <a href="/docs">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/>
+        </svg>
+        Overview
+      </a>
+      <a href="/docs/scalar">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Reference (Scalar)
+      </a>
+      <a href="/docs/swagger" class="active">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Swagger UI
+      </a>
+      <a href="/docs/redoc">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        Redoc
+      </a>
+    </nav>
+    <div class="kpm-mobile-specs">
+      <a href="/docs/swagger.yaml" target="_blank">YAML</a>
+      <a href="/docs/openapi.json" target="_blank">JSON</a>
+    </div>
+  </div>
+
+  <!-- ── Swagger UI Container ────────────────────────────── -->
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-standalone-preset.js"></script>
+  <script>
+    /* ── Scroll effect on topbar ──────────────────────────── */
+    (function () {
+      var topbar = document.getElementById('kpmTopbar');
+      var lastScroll = 0;
+      var ticking = false;
+      window.addEventListener('scroll', function () {
+        lastScroll = window.scrollY;
+        if (!ticking) {
+          window.requestAnimationFrame(function () {
+            if (lastScroll > 12) {
+              topbar.classList.add('scrolled');
+            } else {
+              topbar.classList.remove('scrolled');
+            }
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }, { passive: true });
+    })();
+
+    /* ── Mobile drawer ────────────────────────────────────── */
+    var drawerOpen = false;
+    function kpmOpenDrawer() {
+      drawerOpen = true;
+      document.getElementById('kpmDrawer').classList.add('open');
+      document.getElementById('kpmOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function kpmCloseDrawer() {
+      drawerOpen = false;
+      document.getElementById('kpmDrawer').classList.remove('open');
+      document.getElementById('kpmOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    document.getElementById('kpmHamburger').addEventListener('click', function () {
+      drawerOpen ? kpmCloseDrawer() : kpmOpenDrawer();
+    });
+    document.getElementById('kpmOverlay').addEventListener('click', kpmCloseDrawer);
+    document.getElementById('kpmDrawerClose').addEventListener('click', kpmCloseDrawer);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && drawerOpen) kpmCloseDrawer();
+    });
+
+    /* ── Swagger UI init ──────────────────────────────────── */
+    window.onload = function () {
+      SwaggerUIBundle({
+        url: "/docs/swagger.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "BaseLayout",
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        tryItOutEnabled: true,
+      });
+    };
+  </script>
+</body>
+</html>

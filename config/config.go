@@ -10,11 +10,11 @@ import (
 )
 
 type Config struct {
-	App     AppConfig
-	DB      DatabaseConfig
-	JWT     JWTConfig
-	Upload  UploadConfig
-	Rate    RateLimitConfig
+	App    AppConfig
+	DB     DatabaseConfig
+	JWT    JWTConfig
+	Upload UploadConfig
+	Rate   RateLimitConfig
 }
 
 type AppConfig struct {
@@ -30,6 +30,7 @@ type DatabaseConfig struct {
 	User            string
 	Password        string
 	Name            string
+	Socket          string
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime int
@@ -79,6 +80,7 @@ func Load() *Config {
 			User:            getEnv("DB_USER", "root"),
 			Password:        getEnv("DB_PASSWORD", ""),
 			Name:            getEnv("DB_NAME", "kpm_academy"),
+			Socket:          getEnv("DB_SOCKET", ""),
 			MaxOpenConns:    getEnvInt("DB_MAX_OPEN_CONNS", 25),
 			MaxIdleConns:    getEnvInt("DB_MAX_IDLE_CONNS", 25),
 			ConnMaxLifetime: getEnvInt("DB_CONN_MAX_LIFETIME", 5),

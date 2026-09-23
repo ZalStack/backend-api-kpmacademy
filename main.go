@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -26,7 +27,7 @@ func main() {
 	database.Connect(cfg)
 
 	migrations.RunMigrations()
-	migrations.SeedAdmin(cfg)
+	migrations.SeedAdmin()
 
 	app := fiber.New(fiber.Config{
 		AppName:      cfg.App.Name,
@@ -36,12 +37,14 @@ func main() {
 
 	app.Use(recover.New())
 	app.Use(compress.New())
+	app.Use(middleware.RequestID())
 	if cfg.App.Debug {
 		app.Use(logger.New())
 	}
 	app.Use(middleware.CORS())
 	app.Use(middleware.SecurityHeaders())
 	app.Use(middleware.RateLimit(cfg.Rate.Limit, cfg.Rate.Expiration))
+	app.Use(middleware.RequestTimeout(30 * time.Second))
 
 	routes.SetupRoutes(app, cfg)
 
@@ -69,9 +72,10 @@ func main() {
 func customErrorHandler(c *fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	message := "Internal Server Error"
-	if e, ok := err.(*fiber.Error); ok {
-		code = e.Code
-		message = e.Message
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) {
+		code = fiberErr.Code
+		message = fiberErr.Message
 	}
 	return c.Status(code).JSON(fiber.Map{
 		"success": false,

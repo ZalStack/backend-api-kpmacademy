@@ -1,0 +1,4315 @@
+openapi: 3.0.3
+
+# ============================================================================
+# INFO
+# ============================================================================
+info:
+  title: KPM Academy Backend API
+  description: |
+    ## Overview
+    Production-grade RESTful API for **KPM Academy** — a comprehensive learning management system (LMS)
+    designed for academic test preparation (UTBK/SNBT). Built with Go, Fiber, GORM, and MySQL.
+
+    ---
+
+    ## Architecture
+
+    | Layer | Technology |
+    |-------|-----------|
+    | Runtime | Go 1.22+ |
+    | HTTP Framework | Fiber v2 |
+    | ORM | GORM (MySQL) |
+    | Authentication | JWT (Access + Refresh Token Rotation) |
+    | Rate Limiting | In-memory sliding window |
+
+    ---
+
+    ## Authentication Flow
+
+    ```
+    ┌──────────┐     POST /auth/register      ┌──────────┐
+    │  Client  │ ─────────────────────────────▶ │  Server  │
+    │          │ ◀───────────────────────────── │          │
+    │          │   { access_token, refresh }    │          │
+    │          │                                │          │
+    │          │     POST /auth/login           │          │
+    │          │ ─────────────────────────────▶ │          │
+    │          │ ◀───────────────────────────── │          │
+    │          │   { access_token, refresh }    │          │
+    │          │                                │          │
+    │          │   GET /api/v1/profile          │          │
+    │          │ ──────── Authorization: Bearer ─────────▶│
+    │          │ ◀───────────────────────────── │          │
+    │          │                                │          │
+    │          │   POST /auth/refresh-token     │          │
+    │          │ ─────────────────────────────▶ │          │
+    │          │ ◀── { new access_token, ... }  │          │
+    └──────────┘                                └──────────┘
+    ```
+
+    **Steps:**
+    1. Register → `POST /api/v1/auth/register`
+    2. Login → `POST /api/v1/auth/login` → receive `access_token` + `refresh_token`
+    3. Use `access_token` in header: `Authorization: Bearer <token>`
+    4. When token expires (1h) → `POST /api/v1/auth/refresh-token`
+    5. Logout → `POST /api/v1/auth/logout` (invalidates refresh token)
+
+    ---
+
+    ## Password Policy
+    Must contain **all** of the following (min 8 characters):
+    - Uppercase letter (A-Z)
+    - Lowercase letter (a-z)
+    - Number (0-9)
+    - Special character (!@#$%^&*)
+
+    ---
+
+    ## Pagination
+    All list endpoints support cursor-based pagination:
+
+    | Parameter | Type | Default | Max | Description |
+    |-----------|------|---------|-----|-------------|
+    | `page` | integer | 1 | — | Page number (1-indexed) |
+    | `per_page` | integer | 10 | 100 | Records per page |
+
+    **Response includes:**
+    ```json
+    {
+      "pagination": {
+        "total": 150,
+        "per_page": 10,
+        "current_page": 1,
+        "last_page": 15
+      }
+    }
+    ```
+
+    ---
+
+    ## Standard Response Format
+
+    ### Success (2xx)
+    ```json
+    {
+      "success": true,
+      "message": "Operation successful",
+      "data": { ... },
+      "request_id": "550e8400-e29b-41d4-a716-446655440000"
+    }
+    ```
+
+    ### Error (4xx / 5xx)
+    ```json
+    {
+      "success": false,
+      "message": "Validation failed",
+      "errors": [
+        { "field": "email", "message": "must be a valid email" }
+      ],
+      "request_id": "550e8400-e29b-41d4-a716-446655440000"
+    }
+    ```
+
+    ---
+
+    ## Rate Limiting
+
+    | Endpoint | Limit (Production) | Window |
+    |----------|--------------------|--------|
+    | `POST /auth/register` | 30 requests | 60 seconds |
+    | `POST /auth/login` | 30 requests | 60 seconds |
+    | `POST /kontak-form` | 30 requests | 60 seconds |
+    | `POST /chat/send` | 30 requests | 60 seconds |
+    | `POST /support/submit` | 30 requests | 60 seconds |
+    | `POST /auth/forgot-password` | 15 requests | 60 seconds |
+    | `POST /auth/reset-password` | 15 requests | 60 seconds |
+    | All other endpoints | 100 requests | 60 seconds |
+
+    > **Development mode** (`APP_ENV=development`): Limits are automatically increased to
+    > 500 (auth), 300 (strict), 1000 (global) to avoid blocking during development.
+
+    When rate limit is exceeded:
+    ```json
+    {
+      "success": false,
+      "message": "Too many requests, please try again later"
+    }
+    ```
+
+    ---
+
+
+    ## Security Features
+
+    - **JWT Token Rotation**: Refresh tokens are single-use; each refresh generates new pair
+    - **CORS**: Configurable allowed origins via `CORS_ALLOWED_ORIGINS` env
+    - **Security Headers**: X-Content-Type-Options, X-Frame-Options, HSTS, CSP
+    - **Request Tracing**: Every response includes `request_id` for debugging
+    - **Panic Recovery**: Server won't crash on handler panics
+    - **Input Validation**: Strong password policy, email format, required fields
+
+    ---
+
+    ## API Endpoints Summary
+
+    | Category | Prefix | Auth Required | Description |
+    |----------|--------|---------------|-------------|
+    | Health | `/api/v1/health` | No | System health check |
+    | Auth | `/api/v1/auth/*` | No* | Registration, login, token refresh |
+    | Profile | `/api/v1/profile` | Yes | User profile CRUD |
+    | Dashboard | `/api/v1/dashboard` | Yes | User dashboard stats |
+    | Packages | `/api/v1/packages` | No | Course packages (public) |
+    | Orders | `/api/v1/orders` | Yes | Package purchase orders |
+    | Practice | `/api/v1/practice/*` | Yes | Practice sessions & history |
+    | Videos | `/api/v1/videos` | No | Video content catalog |
+    | Testimonials | `/api/v1/testimonials` | Partial | User reviews |
+    | Contact | `/api/v1/kontak-form` | Partial | Contact form submission |
+    | Support | `/api/v1/support/*` | No | Support tickets |
+    | Chat | `/api/v1/chat/*` | No | Chat messaging |
+    | Admin | `/api/v1/admin/*` | Yes+Admin | Full admin panel |
+
+    *Auth endpoints are rate-limited separately
+    +Admin endpoints require `role: "admin"` in JWT claims
+  version: 1.0.0
+  contact:
+    name: KPM Academy Engineering Team
+    email: engineering@kpmacademy.com
+    url: https://kpmacademy.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+# ============================================================================
+# SERVERS
+# ============================================================================
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.kpmacademy.com/api/v1
+    description: Production server
+
+# ============================================================================
+# SECURITY
+# ============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtained from `/auth/login` or `/auth/register`.
+        Include in header: `Authorization: Bearer <access_token>`
+
+  # ============================================================================
+  # SCHEMAS
+  # ============================================================================
+  schemas:
+    # --- Standard Response ---
+    APIResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation successful"
+        data: {}
+        errors:
+          oneOf:
+            - type: object
+            - type: array
+        request_id:
+          type: string
+          format: uuid
+          description: Unique request ID for tracing
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of records
+          example: 150
+        per_page:
+          type: integer
+          description: Records per page
+          example: 10
+        current_page:
+          type: integer
+          description: Current page number
+          example: 1
+        last_page:
+          type: integer
+          description: Last page number
+          example: 15
+
+    # --- Auth ---
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 255
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: "Must contain uppercase, lowercase, number, and special character"
+          example: "StrongPass123!"
+        phone:
+          type: string
+          example: "+628123456789"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        password:
+          type: string
+          example: "StrongPass123!"
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token from login/register response
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, email, new_password]
+      properties:
+        token:
+          type: string
+          description: Reset token from email
+        email:
+          type: string
+          format: email
+        new_password:
+          type: string
+          minLength: 8
+          description: "Must contain uppercase, lowercase, number, and special character"
+
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password:
+          type: string
+        new_password:
+          type: string
+          minLength: 8
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (expires in 1 hour)
+        refresh_token:
+          type: string
+          description: JWT refresh token (expires in 7 days)
+        expires_at:
+          type: integer
+          format: int64
+          description: Access token expiration timestamp (Unix)
+          example: 1695000000
+
+    # --- User ---
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        student_name:
+          type: string
+        student_class:
+          type: string
+        student_major:
+          type: string
+        school_name:
+          type: string
+        profile_photo:
+          type: string
+        address:
+          type: string
+        gender:
+          type: string
+          enum: [male, female]
+        religion:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        is_verified:
+          type: boolean
+        is_active:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        student_name:
+          type: string
+        student_class:
+          type: string
+        student_major:
+          type: string
+        school_name:
+          type: string
+        profile_photo:
+          type: string
+        address:
+          type: string
+        gender:
+          type: string
+          enum: [male, female]
+        religion:
+          type: string
+
+    # --- Package ---
+    Package:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        thumbnail:
+          type: string
+        kelas:
+          type: string
+          description: "Class level (e.g., XII, XI)"
+        jenjang:
+          type: string
+          description: "Education level (e.g., SMA, SMK)"
+        price:
+          type: number
+          format: double
+          example: 150000
+        discount_price:
+          type: number
+          format: double
+          nullable: true
+        is_discount_active:
+          type: boolean
+        is_pay_what_you_want:
+          type: boolean
+        min_pay_amount:
+          type: number
+          format: double
+        membership_duration_days:
+          type: integer
+          example: 30
+        cards:
+          type: string
+          description: JSON string of flashcards
+        questions:
+          type: string
+          description: JSON string of practice questions
+        reviews:
+          type: string
+          description: JSON string of reviews
+        hide_explanation:
+          type: boolean
+        time_limit_minutes:
+          type: integer
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePackageRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          example: "Paket UTBK 2024"
+        description:
+          type: string
+        thumbnail:
+          type: string
+          description: URL to thumbnail image
+        kelas:
+          type: string
+        jenjang:
+          type: string
+        price:
+          type: number
+          example: 150000
+        discount_price:
+          type: number
+        is_discount_active:
+          type: boolean
+          default: false
+        is_pay_what_you_want:
+          type: boolean
+          default: false
+        min_pay_amount:
+          type: number
+        membership_duration_days:
+          type: integer
+          default: 30
+        cards:
+          type: string
+          description: JSON string of flashcards
+        questions:
+          type: string
+          description: JSON string of questions
+        hide_explanation:
+          type: boolean
+          default: false
+        time_limit_minutes:
+          type: integer
+
+    # --- Order ---
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        package_id:
+          type: string
+          format: uuid
+          nullable: true
+        package:
+          $ref: '#/components/schemas/Package'
+        video_order_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated video order ID (for video type orders)
+        type:
+          type: string
+          enum: [package, video]
+        order_number:
+          type: string
+          example: "ORD-20240101120000-ABC123"
+        total_price:
+          type: number
+          format: double
+          example: 150000
+        is_custom_amount:
+          type: boolean
+        payment_status:
+          type: string
+          enum: [pending, paid, failed, refunded]
+        transaction_id:
+          type: string
+          nullable: true
+          example: "TRX-ABCDEFGHIJ"
+        payment_type:
+          type: string
+          nullable: true
+        payment_reference:
+          type: string
+          nullable: true
+          description: Payment gateway reference/order ID
+        payment_url:
+          type: string
+          nullable: true
+          description: Payment gateway redirect URL
+        payment_notes:
+          type: string
+          nullable: true
+          description: Additional payment notes
+        payment_time:
+          type: string
+          format: date-time
+          nullable: true
+        enrollment:
+          type: string
+          description: JSON string of enrollment data
+          example: "{}"
+        membership_duration_days:
+          type: integer
+          nullable: true
+        membership_start:
+          type: string
+          format: date-time
+          nullable: true
+        membership_end:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [package_id]
+      properties:
+        package_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        total_price:
+          type: number
+          format: double
+          description: Custom amount for pay-what-you-want packages
+          example: 150000
+        is_custom_amount:
+          type: boolean
+          default: false
+
+    # --- Video ---
+    Video:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        package_id:
+          type: string
+          format: uuid
+          nullable: true
+        video_file:
+          type: string
+        video_url:
+          type: string
+        thumbnail:
+          type: string
+        price:
+          type: number
+          format: double
+        discount_type:
+          type: string
+        discount_value:
+          type: number
+          format: double
+          nullable: true
+        access_duration_days:
+          type: integer
+        is_active:
+          type: boolean
+        is_pay_what_you_want:
+          type: boolean
+        min_pay_amount:
+          type: number
+          format: double
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateVideoRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        package_id:
+          type: string
+          format: uuid
+        video_file:
+          type: string
+        video_url:
+          type: string
+        thumbnail:
+          type: string
+        price:
+          type: number
+        discount_type:
+          type: string
+        discount_value:
+          type: number
+        access_duration_days:
+          type: integer
+          default: 30
+        is_pay_what_you_want:
+          type: boolean
+          default: false
+        min_pay_amount:
+          type: number
+
+    UpdateVideoRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        video_file:
+          type: string
+        video_url:
+          type: string
+        thumbnail:
+          type: string
+        price:
+          type: number
+        discount_type:
+          type: string
+        discount_value:
+          type: number
+        access_duration_days:
+          type: integer
+        is_active:
+          type: boolean
+        is_pay_what_you_want:
+          type: boolean
+        min_pay_amount:
+          type: number
+
+    CreateVideoOrderRequest:
+      type: object
+      properties:
+        total_price:
+          type: number
+          description: Custom amount for pay-what-you-want videos
+
+    UpdatePackageRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        thumbnail:
+          type: string
+        kelas:
+          type: string
+        jenjang:
+          type: string
+        price:
+          type: number
+        discount_price:
+          type: number
+        is_discount_active:
+          type: boolean
+        is_pay_what_you_want:
+          type: boolean
+        min_pay_amount:
+          type: number
+        membership_duration_days:
+          type: integer
+        cards:
+          type: string
+          description: JSON string of flashcards
+        questions:
+          type: string
+          description: JSON string of questions
+        hide_explanation:
+          type: boolean
+        time_limit_minutes:
+          type: integer
+        is_active:
+          type: boolean
+
+    # --- VideoOrder ---
+    VideoOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        video_id:
+          type: string
+          format: uuid
+        video:
+          $ref: '#/components/schemas/Video'
+        order_number:
+          type: string
+        total_price:
+          type: number
+          format: double
+        payment_status:
+          type: string
+          enum: [pending, paid, failed, refunded]
+        transaction_id:
+          type: string
+          nullable: true
+        payment_type:
+          type: string
+          nullable: true
+        payment_reference:
+          type: string
+          nullable: true
+          description: Payment gateway reference/order ID
+        payment_url:
+          type: string
+          nullable: true
+          description: Payment gateway redirect URL
+        payment_time:
+          type: string
+          format: date-time
+          nullable: true
+        access_granted:
+          type: boolean
+        access_start:
+          type: string
+          format: date-time
+          nullable: true
+        access_end:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # --- Practice ---
+    PracticeSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        package_id:
+          type: string
+          format: uuid
+        package:
+          $ref: '#/components/schemas/Package'
+        order_id:
+          type: string
+          format: uuid
+        order:
+          $ref: '#/components/schemas/Order'
+        card_id:
+          type: string
+        total_question:
+          type: integer
+        correct_answer:
+          type: integer
+        wrong_answer:
+          type: integer
+        unanswered:
+          type: integer
+        total_score:
+          type: number
+          format: double
+        duration_seconds:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [in_progress, finished]
+        answers:
+          type: string
+          description: JSON string of answers
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StartPracticeRequest:
+      type: object
+      required: [package_id, card_id]
+      properties:
+        package_id:
+          type: string
+          format: uuid
+        card_id:
+          type: string
+
+    SubmitPracticeRequest:
+      type: object
+      required: [session_id, answers]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        answers:
+          type: string
+          description: JSON string of user answers
+        duration:
+          type: integer
+          description: Duration in seconds
+
+    # --- Testimonial ---
+    Testimonial:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        content:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        is_active:
+          type: boolean
+        is_approved:
+          type: boolean
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTestimonialRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 10
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 5
+
+    BulkDeleteRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    # --- Support ---
+    SupportTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        user:
+          $ref: '#/components/schemas/User'
+        name:
+          type: string
+        email:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        status:
+          type: string
+          enum: [pending, answered, closed]
+        answered_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SubmitSupportRequest:
+      type: object
+      required: [name, email, question]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        question:
+          type: string
+
+    AnswerSupportRequest:
+      type: object
+      required: [answer]
+      properties:
+        answer:
+          type: string
+
+    # --- Contact ---
+    ContactForm:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        user:
+          $ref: '#/components/schemas/User'
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        subject:
+          type: string
+        message:
+          type: string
+        recipient_email:
+          type: string
+          nullable: true
+          description: Admin recipient email
+        status:
+          type: string
+          enum: [pending, read, replied, closed]
+        admin_reply:
+          type: string
+          nullable: true
+        replied_at:
+          type: string
+          format: date-time
+          nullable: true
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the form was read by admin
+        ip_address:
+          type: string
+          nullable: true
+          description: IP address of the submitter
+        user_agent:
+          type: string
+          nullable: true
+          description: User-Agent header of the submitter
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SubmitContactRequest:
+      type: object
+      required: [name, email, message]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        subject:
+          type: string
+        message:
+          type: string
+
+    ReplyContactRequest:
+      type: object
+      required: [admin_reply]
+      properties:
+        admin_reply:
+          type: string
+
+    # --- Chat ---
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        role:
+          type: string
+          enum: [user, assistant]
+        message:
+          type: string
+        is_ai:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SendChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        session_id:
+          type: string
+          description: Chat session identifier for conversation context
+
+    # --- Notification ---
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        data:
+          type: string
+          description: JSON string of additional data
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # --- Login Log ---
+    LoginLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        location:
+          type: string
+        login_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    # --- Error ---
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          oneOf:
+            - type: object
+            - type: string
+        request_id:
+          type: string
+          format: uuid
+
+    # --- Payment ---
+    MidtransNotification:
+      type: object
+      description: Midtrans payment notification webhook payload
+      properties:
+        order_id:
+          type: string
+          description: Order number from your system
+          example: "ORD-20260917120000-ABC123"
+        transaction_id:
+          type: string
+          description: Midtrans transaction ID
+          example: "a]1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        status_code:
+          type: string
+          description: HTTP status code from Midtrans
+          example: "200"
+        transaction_time:
+          type: string
+          description: "Transaction timestamp (format: 2006-01-02 15:04:05)"
+          example: "2026-09-17 12:00:00"
+        gross_amount:
+          type: string
+          description: Total payment amount
+          example: "150000.00"
+        payment_type:
+          type: string
+          description: Payment method type
+          example: "bank_transfer"
+        transaction_status:
+          type: string
+          description: Transaction status (capture, settlement, pending, deny, cancel, expire, refund)
+          example: "settlement"
+        status:
+          type: string
+          description: Alternative status field (fallback for transaction_status)
+          example: "settlement"
+        fraud_status:
+          type: string
+          description: Fraud screening result
+          example: "accept"
+        signature_key:
+          type: string
+          description: HMAC signature for verification
+          example: "abc123def456..."
+
+  # ============================================================================
+  # RESPONSES
+  # ============================================================================
+  responses:
+    BadRequest:
+      description: Bad Request - Validation error or invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Validation failed"
+            errors:
+              - field: "email"
+                message: "Field 'Email' failed on the 'email' tag"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Unauthorized:
+      description: Unauthorized - Invalid or missing authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Unauthorized"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions (admin required)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Admin access required"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Resource not found"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Conflict:
+      description: Conflict - Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Email already registered"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    RateLimited:
+      description: Too Many Requests - Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Too many requests, please try again later"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Internal Server Error"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+  # ============================================================================
+  # PARAMETERS
+  # ============================================================================
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique resource identifier (UUID v4)
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: Page number for pagination (1-indexed)
+
+    PerPageParam:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 10
+        minimum: 1
+        maximum: 100
+      description: Number of records per page (max 100)
+
+# ============================================================================
+# TAGS
+# ============================================================================
+tags:
+  - name: Health
+    description: System health check, ping, and uptime monitoring endpoints.
+  - name: Auth
+    description: |
+      User authentication and account lifecycle flows:
+      - Registration & Login
+      - Token Refresh (automatic token rotation)
+      - Forgot & Reset Password
+      - Logout (refresh token invalidation)
+  - name: Profile
+    description: Authenticated user profile retrieval, profile updates, and password changes.
+  - name: Dashboard
+    description: Student summary statistics, enrolled courses, and activity overview.
+  - name: Notifications
+    description: User notification inbox, unread badges, and read status management.
+  - name: Packages
+    description: Public academic packages, course catalogs, and subject curricula.
+  - name: Orders
+    description: Course package purchase orders, status checks, and enrollment confirmation.
+  - name: Payments
+    description: Payment processing, status webhooks, and payment simulation.
+  - name: Practice
+    description: CBT / UTBK examination practice sessions, answer submission, score computation, and review history.
+  - name: Videos
+    description: Premium video learning library, streaming links, and video orders.
+  - name: Testimonials
+    description: Public verified student testimonials and user review submissions.
+  - name: Contact
+    description: Public inquiry and contact form submissions.
+  - name: Support
+    description: Student helpdesk, ticket creation, and technical support inquiry.
+  - name: Chat
+    description: AI assistant chat interface and conversation message history.
+  - name: Admin - Dashboard
+    description: Comprehensive platform-wide analytics, revenue totals, user counts, and activity graphs.
+  - name: Admin - Users
+    description: User account administration, role assignment, status toggling, and audit login logs.
+  - name: Admin - Packages
+    description: Academic package authoring, price setting, flashcard management, and PDF question import.
+  - name: Admin - Orders
+    description: Order approval workflow, payment verification, and manual course activation.
+  - name: Admin - Transactions
+    description: Financial transaction records, revenue breakdown, and exportable ledger.
+  - name: Admin - Enroll Keys
+    description: Batch generation, activation, and redemption monitoring for course enrollment vouchers.
+  - name: Admin - Practice Stats
+    description: Student test performance metrics, score distributions, and difficulty analytics.
+  - name: Admin - Reports
+    description: Academic and operational business reports for download and analysis.
+  - name: Admin - Testimonials
+    description: Review moderation, approval, visibility toggling, and bulk deletion.
+  - name: Admin - Support
+    description: Helpdesk ticket assignment, resolution tracking, and support response.
+  - name: Admin - Contact Forms
+    description: Public inquiry inbox, ticket status updates, and email replies.
+  - name: Admin - Videos
+    description: Educational video uploading, publishing, preview controls, and catalog management.
+  - name: Admin - Video Orders
+    description: Video-specific purchase tracking and manual access grant management.
+  - name: Admin - Notifications
+    description: Platform-wide announcements and targeted student notification broadcasts.
+
+# ============================================================================
+# TAG GROUPS (Logical Navigation Hierarchy)
+# ============================================================================
+x-tagGroups:
+  - name: "Core & Authentication"
+    tags:
+      - Health
+      - Auth
+      - Profile
+  - name: "Student Services & Catalog"
+    tags:
+      - Dashboard
+      - Notifications
+      - Packages
+      - Videos
+      - Orders
+      - Payments
+      - Practice
+  - name: "Engagement & Support"
+    tags:
+      - Testimonials
+      - Contact
+      - Support
+      - Chat
+  - name: "Admin — Analytics & Insights"
+    tags:
+      - Admin - Dashboard
+      - Admin - Practice Stats
+      - Admin - Reports
+      - Admin - Transactions
+  - name: "Admin — Academic Catalog"
+    tags:
+      - Admin - Packages
+      - Admin - Videos
+      - Admin - Video Orders
+  - name: "Admin — Users & Sales"
+    tags:
+      - Admin - Users
+      - Admin - Orders
+      - Admin - Enroll Keys
+  - name: "Admin — Moderation & Helpdesk"
+    tags:
+      - Admin - Testimonials
+      - Admin - Support
+      - Admin - Contact Forms
+      - Admin - Notifications
+
+# ============================================================================
+# PATHS
+# ============================================================================
+paths:
+  # ============================================================================
+  # HEALTH
+  # ============================================================================
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      description: Returns API status and version information
+      security: []
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "KPM Academy API is running"
+                  version:
+                    type: string
+                    example: "v1"
+
+  # ============================================================================
+  # AUTH
+  # ============================================================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      description: |
+        Create a new user account. Returns JWT token pair on success.
+        Rate limited: 10 requests per minute per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: "John Doe"
+              email: "john@example.com"
+              password: "StrongPass123!"
+              phone: "+628123456789"
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          tokens:
+                            $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      operationId: login
+      description: |
+        Authenticate user and return JWT token pair.
+        Rate limited: 10 requests per minute per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "john@example.com"
+              password: "StrongPass123!"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+                          tokens:
+                            $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      description: |
+        Exchange refresh token for new token pair.
+        Previous refresh token is invalidated (rotation).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refresh_token: "eyJhbGciOiJIUzI1NiIs..."
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tokens:
+                            $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      operationId: forgotPassword
+      description: |
+        Generate a password reset token. Always returns success to prevent email enumeration.
+        Rate limited: 5 requests per minute per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            example:
+              email: "john@example.com"
+      responses:
+        '200':
+          description: If email exists, a reset link has been sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password with token
+      operationId: resetPassword
+      description: |
+        Reset user password using the token from forgot-password.
+        Rate limited: 5 requests per minute per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            example:
+              token: "abc123def456..."
+              email: "john@example.com"
+              new_password: "NewStrongPass123!"
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      operationId: logout
+      description: Invalidate current refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # PROFILE
+  # ============================================================================
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Get user profile
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Profile]
+      summary: Update user profile
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /profile/change-password:
+    put:
+      tags: [Profile]
+      summary: Change password
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              old_password: "OldPass123!"
+              new_password: "NewStrongPass123!"
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # DASHBOARD
+  # ============================================================================
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get user dashboard
+      operationId: getUserDashboard
+      description: Returns user's order count, practice stats, and average score
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_orders:
+                            type: integer
+                          total_practice:
+                            type: integer
+                          avg_score:
+                            type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # NOTIFICATIONS
+  # ============================================================================
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Get user notifications
+      operationId: getUserNotifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread notification count
+      operationId: getUnreadNotificationCount
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Unread count retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark notification as read
+      operationId: markNotificationRead
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      operationId: markAllNotificationsRead
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # PACKAGES
+  # ============================================================================
+  /packages:
+    get:
+      tags: [Packages]
+      summary: Get all packages (public)
+      operationId: getPublicPackages
+      description: Returns active packages with optional class/level filtering
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: kelas
+          in: query
+          schema:
+            type: string
+          description: Filter by class level (e.g., XII, XI)
+        - name: jenjang
+          in: query
+          schema:
+            type: string
+          description: Filter by education level (e.g., SMA, SMK)
+      responses:
+        '200':
+          description: Packages retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Package'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /packages/{id}:
+    get:
+      tags: [Packages]
+      summary: Get package by ID
+      operationId: getPackageById
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Package retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ORDERS
+  # ============================================================================
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Get user orders
+      operationId: getUserOrders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: payment_status
+          in: query
+          schema:
+            type: string
+            enum: [pending, paid, failed, refunded]
+      responses:
+        '200':
+          description: Orders retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Orders]
+      summary: Create new order
+      operationId: createOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            example:
+              package_id: "550e8400-e29b-41d4-a716-446655440000"
+              total_price: 150000
+              is_custom_amount: false
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /orders/status:
+    get:
+      tags: [Orders]
+      summary: Get recent payment status
+      operationId: getPaymentStatus
+      description: Returns last 10 orders with payment status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment status retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order by ID
+      operationId: getOrderById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Order retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{id}/pay:
+    post:
+      tags: [Payments]
+      summary: Simulate payment for order
+      operationId: simulatePayment
+      description: Mark order as paid and activate membership
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Payment successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '400':
+          description: Order is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payment/notification:
+    post:
+      tags: [Payments]
+      summary: Payment gateway webhook notification callback
+      description: |
+        Callback endpoint invoked by payment gateways (e.g., Midtrans or Xendit webhook) to notify the system of transaction status updates.
+      operationId: paymentNotificationWebhook
+      requestBody:
+        description: Webhook payload from payment provider
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  example: "ORD-20260917-ABC123"
+                transaction_status:
+                  type: string
+                  example: "settlement"
+                status_code:
+                  type: string
+                  example: "200"
+                gross_amount:
+                  type: string
+                  example: "150000.00"
+                payment_type:
+                  type: string
+                  example: "bank_transfer"
+                signature_key:
+                  type: string
+                  example: "abc123def456..."
+      responses:
+        '200':
+          description: Webhook received and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  /payment/video-notification:
+    post:
+      tags: [Payments]
+      summary: Video payment gateway webhook notification callback
+      description: |
+        Callback endpoint invoked by payment gateways (e.g., Midtrans) to notify the system of video order transaction status updates.
+        Updates video order payment status and grants access on successful payment.
+      operationId: videoPaymentNotificationWebhook
+      requestBody:
+        description: Webhook payload from payment provider
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MidtransNotification'
+      responses:
+        '200':
+          description: Webhook received and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Invalid request body"
+        '401':
+          description: Invalid signature
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Invalid signature"
+
+  # ============================================================================
+  # PRACTICE
+  # ============================================================================
+  /practice/start:
+    post:
+      tags: [Practice]
+      summary: Start practice session
+      operationId: startPractice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartPracticeRequest'
+            example:
+              package_id: "550e8400-e29b-41d4-a716-446655440000"
+              card_id: "card-001"
+      responses:
+        '201':
+          description: Practice session started
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /practice/submit:
+    post:
+      tags: [Practice]
+      summary: Submit practice answers
+      operationId: submitPractice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitPracticeRequest'
+      responses:
+        '200':
+          description: Practice submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /practice/history:
+    get:
+      tags: [Practice]
+      summary: Get practice history
+      operationId: getPracticeHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Practice history retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PracticeSession'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /practice/statistics:
+    get:
+      tags: [Practice]
+      summary: Get practice statistics for current user
+      operationId: getPracticeStatisticsUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_sessions:
+                            type: integer
+                            description: Total practice sessions
+                            example: 42
+                          avg_score:
+                            type: number
+                            format: double
+                            description: Average score across finished sessions
+                            example: 78.5
+                          total_correct:
+                            type: integer
+                            description: Total correct answers
+                            example: 350
+                          total_wrong:
+                            type: integer
+                            description: Total wrong answers
+                            example: 50
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /practice/{id}:
+    get:
+      tags: [Practice]
+      summary: Get practice session by ID
+      operationId: getPracticeSessionById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Practice session retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # VIDEOS
+  # ============================================================================
+  /videos:
+    get:
+      tags: [Videos]
+      summary: Get all videos
+      operationId: getVideos
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: package_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter videos by package ID
+      responses:
+        '200':
+          description: Videos retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Video'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /videos/{id}:
+    get:
+      tags: [Videos]
+      summary: Get video by ID
+      operationId: getVideoById
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Video retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Video'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /videos/{id}/order:
+    post:
+      tags: [Orders]
+      summary: Create video order
+      operationId: createVideoOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVideoOrderRequest'
+      responses:
+        '201':
+          description: Video order created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VideoOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /videos/{id}/pay/{orderId}:
+    post:
+      tags: [Payments]
+      summary: Simulate video payment
+      operationId: simulateVideoPayment
+      description: Development-only endpoint to simulate video payment. Not available in production.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Video ID
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Order ID
+      responses:
+        '200':
+          description: Video payment successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VideoOrder'
+        '400':
+          description: Order is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # TESTIMONIALS
+  # ============================================================================
+  /testimonials:
+    get:
+      tags: [Testimonials]
+      summary: Get public testimonials
+      operationId: getPublicTestimonials
+      description: Returns approved and active testimonials with average rating
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Testimonials retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          testimonials:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Testimonial'
+                          avg_rating:
+                            type: number
+                            format: double
+                            description: Average rating across all active testimonials
+                            example: 4.5
+                          total:
+                            type: integer
+                            description: Total number of active testimonials
+                            example: 150
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [Testimonials]
+      summary: Create testimonial
+      operationId: createTestimonial
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTestimonialRequest'
+            example:
+              content: "Kursus ini sangat membantu! Penjelasannya jelas dan mudah dipahami."
+              rating: 5
+      responses:
+        '201':
+          description: Testimonial created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /testimonials/my:
+    get:
+      tags: [Testimonials]
+      summary: Get current user's testimonial
+      operationId: getUserTestimonial
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User testimonial retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Testimonial'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # CONTACT
+  # ============================================================================
+  /kontak-form:
+    post:
+      tags: [Contact]
+      summary: Submit contact form
+      operationId: createContactForm
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitContactRequest'
+            example:
+              name: "John Doe"
+              email: "john@example.com"
+              phone: "+628123456789"
+              subject: "Question about package"
+              message: "I want to know more about..."
+      responses:
+        '201':
+          description: Contact form submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContactForm'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [Contact]
+      summary: Get contact forms (authenticated)
+      operationId: getUserContactForms
+      description: Returns all contact forms with pagination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Contact forms retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ContactForm'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /kontak-form/{id}:
+    get:
+      tags: [Contact]
+      summary: Get contact form by ID
+      operationId: getContactFormById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Contact form retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContactForm'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # SUPPORT
+  # ============================================================================
+  /support/submit:
+    post:
+      tags: [Support]
+      summary: Submit support ticket
+      operationId: submitSupport
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSupportRequest'
+            example:
+              name: "John Doe"
+              email: "john@example.com"
+              question: "I need help with..."
+      responses:
+        '201':
+          description: Support ticket submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupportTicket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ============================================================================
+  # CHAT
+  # ============================================================================
+  /chat/send:
+    post:
+      tags: [Chat]
+      summary: Send chat message
+      operationId: sendChatMessage
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendChatRequest'
+            example:
+              message: "Hello, I need help"
+              session_id: "session-123"
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          session_id:
+                            type: string
+                          user_message:
+                            $ref: '#/components/schemas/ChatMessage'
+                          assistant_message:
+                            $ref: '#/components/schemas/ChatMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /chat/history:
+    get:
+      tags: [Chat]
+      summary: Get chat history
+      description: >
+        Retrieve chat message history for a specific session.
+        Requires authentication — only messages belonging to the authenticated user's session will be returned.
+      operationId: getChatHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Chat session identifier (returned from POST /chat/send)
+      responses:
+        '200':
+          description: Chat history retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ChatMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # ADMIN - DASHBOARD
+  # ============================================================================
+  /admin/dashboard:
+    get:
+      tags: [Admin - Dashboard]
+      summary: Get admin dashboard
+      operationId: getAdminDashboard
+      description: Returns total users, packages, orders, and revenue
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_users:
+                            type: integer
+                          total_packages:
+                            type: integer
+                          total_orders:
+                            type: integer
+                          total_revenue:
+                            type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN - USERS
+  # ============================================================================
+  /admin/users:
+    get:
+      tags: [Admin - Users]
+      summary: Get all users
+      operationId: adminGetUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Users retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{id}:
+    get:
+      tags: [Admin - Users]
+      summary: Get user by ID
+      operationId: adminGetUserById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{id}/toggle-active:
+    post:
+      tags: [Admin - Users]
+      summary: Toggle user active status
+      operationId: adminToggleUserActive
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: User status toggled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/login-logs:
+    get:
+      tags: [Admin - Users]
+      summary: Get login logs
+      operationId: adminGetLoginLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Login logs retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LoginLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN - PACKAGES
+  # ============================================================================
+  /admin/packages:
+    get:
+      tags: [Admin - Packages]
+      summary: Get all packages (admin view)
+      operationId: adminGetPackages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Packages retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Package'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Admin - Packages]
+      summary: Create new package
+      operationId: adminCreatePackage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePackageRequest'
+      responses:
+        '201':
+          description: Package created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/packages/{id}:
+    get:
+      tags: [Admin - Packages]
+      summary: Get package by ID (admin view)
+      operationId: adminGetPackageById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Package retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Admin - Packages]
+      summary: Update package
+      operationId: adminUpdatePackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePackageRequest'
+      responses:
+        '200':
+          description: Package updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Admin - Packages]
+      summary: Delete package
+      operationId: adminDeletePackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Package deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/packages/{id}/cards:
+    post:
+      tags: [Admin - Packages]
+      summary: Add cards to package
+      operationId: adminAddCardToPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cards]
+              properties:
+                cards:
+                  type: string
+                  description: JSON string of flashcards
+      responses:
+        '200':
+          description: Cards updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/packages/{id}/cards/{cardId}:
+    delete:
+      tags: [Admin - Packages]
+      summary: Remove card from package
+      operationId: adminRemoveCardFromPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Card ID to remove
+      responses:
+        '200':
+          description: Card removed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/packages/{id}/import-pdf:
+    post:
+      tags: [Admin - Packages]
+      summary: Import questions from PDF
+      operationId: adminImportQuestionsPDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questions]
+              properties:
+                questions:
+                  type: string
+                  description: JSON string of questions from PDF
+      responses:
+        '200':
+          description: Questions imported
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Package'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN - ORDERS
+  # ============================================================================
+  /admin/orders:
+    get:
+      tags: [Admin - Orders]
+      summary: Get all orders
+      operationId: adminGetOrders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: payment_status
+          in: query
+          schema:
+            type: string
+            enum: [pending, paid, failed, refunded]
+      responses:
+        '200':
+          description: Orders retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/orders/{id}:
+    get:
+      tags: [Admin - Orders]
+      summary: Get order by ID (admin view)
+      operationId: adminGetOrderById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Order retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/orders/{id}/verify:
+    post:
+      tags: [Admin - Orders]
+      summary: Verify order payment
+      operationId: adminVerifyOrder
+      description: Manually verify and activate order payment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Order verified
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - TRANSACTIONS
+  # ============================================================================
+  /admin/transactions:
+    get:
+      tags: [Admin - Transactions]
+      summary: Get all transactions
+      operationId: adminGetTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/transactions/stats:
+    get:
+      tags: [Admin - Transactions]
+      summary: Get transaction statistics
+      operationId: adminGetTransactionStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_revenue:
+                            type: number
+                          total_transactions:
+                            type: integer
+                          total_users:
+                            type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/transactions/{id}:
+    get:
+      tags: [Admin - Transactions]
+      summary: Get transaction by ID
+      operationId: adminGetTransactionById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Transaction retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - ENROLL KEYS
+  # ============================================================================
+  /admin/enroll-keys:
+    get:
+      tags: [Admin - Enroll Keys]
+      summary: Get all enrollment keys
+      operationId: adminGetEnrollKeys
+      description: Returns all paid orders (enrollment keys) with pagination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Enroll keys retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/enroll-keys/{id}:
+    get:
+      tags: [Admin - Enroll Keys]
+      summary: Get enrollment key by ID
+      operationId: adminGetEnrollKeyById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Enroll key retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - PRACTICE STATS
+  # ============================================================================
+  /admin/practice-statistics:
+    get:
+      tags: [Admin - Practice Stats]
+      summary: Get all practice statistics
+      operationId: adminGetPracticeStatistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Practice statistics retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PracticeSession'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/practice-statistics/{id}:
+    get:
+      tags: [Admin - Practice Stats]
+      summary: Get practice statistic by ID
+      operationId: adminGetPracticeStatisticById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Practice statistic retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - REPORTS
+  # ============================================================================
+  /admin/reports:
+    get:
+      tags: [Admin - Reports]
+      summary: Get admin reports
+      operationId: adminGetReports
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Reports retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN - TESTIMONIALS
+  # ============================================================================
+  /admin/testimonials:
+    get:
+      tags: [Admin - Testimonials]
+      summary: Get all testimonials
+      operationId: adminGetTestimonials
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Testimonials retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Testimonial'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/testimonials/bulk-delete:
+    post:
+      tags: [Admin - Testimonials]
+      summary: Bulk delete testimonials
+      description: Delete multiple testimonials at once by providing a list of UUIDs.
+      operationId: adminBulkDeleteTestimonials
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteRequest'
+      responses:
+        '200':
+          description: Testimonials deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/testimonials/{id}/approve:
+    post:
+      tags: [Admin - Testimonials]
+      summary: Approve testimonial
+      operationId: adminApproveTestimonial
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Testimonial approved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Testimonial'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/testimonials/{id}/toggle-active:
+    post:
+      tags: [Admin - Testimonials]
+      summary: Toggle testimonial active status
+      operationId: adminToggleTestimonial
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Testimonial status toggled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Testimonial'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/testimonials/{id}:
+    delete:
+      tags: [Admin - Testimonials]
+      summary: Delete testimonial
+      operationId: adminDeleteTestimonial
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Testimonial deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN - SUPPORT
+  # ============================================================================
+  /admin/support:
+    get:
+      tags: [Admin - Support]
+      summary: Get all support tickets
+      operationId: adminGetSupportTickets
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, answered, closed]
+          description: Filter by ticket status
+      responses:
+        '200':
+          description: Support tickets retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupportTicket'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/support/{id}:
+    get:
+      tags: [Admin - Support]
+      summary: Get support ticket by ID
+      operationId: adminGetSupportTicketById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Support ticket retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupportTicket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Admin - Support]
+      summary: Delete support ticket
+      operationId: adminDeleteSupportTicket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Support ticket deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/support/{id}/answer:
+    post:
+      tags: [Admin - Support]
+      summary: Answer support ticket
+      operationId: adminAnswerSupportTicket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerSupportRequest'
+      responses:
+        '200':
+          description: Support ticket answered
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupportTicket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/support/{id}/status:
+    put:
+      tags: [Admin - Support]
+      summary: Update support ticket status
+      operationId: adminUpdateSupportStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, answered, closed]
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupportTicket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - CONTACT FORMS
+  # ============================================================================
+  /admin/kontak-form:
+    get:
+      tags: [Admin - Contact Forms]
+      summary: Get all contact forms
+      operationId: adminGetContactForms
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, read, replied, closed]
+          description: Filter by form status
+      responses:
+        '200':
+          description: Contact forms retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ContactForm'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/kontak-form/{id}:
+    get:
+      tags: [Admin - Contact Forms]
+      summary: Get contact form by ID
+      operationId: adminGetContactFormById
+      description: Retrieves a contact form and marks it as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Contact form retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContactForm'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Admin - Contact Forms]
+      summary: Delete contact form
+      operationId: adminDeleteContactForm
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Contact form deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/kontak-form/{id}/reply:
+    post:
+      tags: [Admin - Contact Forms]
+      summary: Reply to contact form
+      operationId: adminReplyContactForm
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplyContactRequest'
+      responses:
+        '200':
+          description: Contact form replied
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContactForm'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/kontak-form/{id}/status:
+    put:
+      tags: [Admin - Contact Forms]
+      summary: Update contact form status
+      operationId: adminUpdateContactStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, read, replied, closed]
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContactForm'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - VIDEOS
+  # ============================================================================
+  /admin/videos:
+    get:
+      tags: [Admin - Videos]
+      summary: Get all videos (admin view)
+      operationId: adminGetVideos
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Videos retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Video'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Admin - Videos]
+      summary: Create new video
+      operationId: adminCreateVideo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVideoRequest'
+      responses:
+        '201':
+          description: Video created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Video'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/videos/{id}:
+    get:
+      tags: [Admin - Videos]
+      summary: Get video by ID (admin view)
+      operationId: adminGetVideoById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Video retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Video'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Admin - Videos]
+      summary: Update video
+      operationId: adminUpdateVideo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVideoRequest'
+      responses:
+        '200':
+          description: Video updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Video'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Admin - Videos]
+      summary: Delete video
+      operationId: adminDeleteVideo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Video deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/videos/{id}/toggle:
+    post:
+      tags: [Admin - Videos]
+      summary: Toggle video active status
+      operationId: adminToggleVideo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Video status toggled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Video'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - VIDEO ORDERS
+  # ============================================================================
+  /admin/video-orders:
+    get:
+      tags: [Admin - Video Orders]
+      summary: Get all video orders
+      operationId: adminGetVideoOrders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Video orders retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VideoOrder'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/video-orders/{id}/grant:
+    post:
+      tags: [Admin - Video Orders]
+      summary: Grant video access
+      operationId: adminGrantVideoAccess
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Video access granted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VideoOrder'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # ADMIN - NOTIFICATIONS
+  # ============================================================================
+  /admin/notifications:
+    get:
+      tags: [Admin - Notifications]
+      summary: Get admin notifications
+      operationId: adminGetNotifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ============================================================================
+# GLOBAL SECURITY
+# ============================================================================
+security: []

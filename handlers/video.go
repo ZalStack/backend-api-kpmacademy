@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"os"
 	"time"
 
 	"backend-api-kpmacademy/database"
@@ -248,6 +249,10 @@ func CreateVideoOrder() fiber.Handler {
 
 func SimulateVideoPayment() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if os.Getenv("APP_ENV") == envProduction {
+			return utils.ForbiddenResponse(c, "Endpoint not available in production")
+		}
+
 		uid, ok := utils.GetUserID(c)
 		if !ok {
 			return utils.UnauthorizedResponse(c, "Unauthorized")
@@ -266,16 +271,22 @@ func SimulateVideoPayment() fiber.Handler {
 			return utils.BadRequestResponse(c, "Order is not pending", nil)
 		}
 
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
 		now := time.Now()
 		order.PaymentStatus = "paid"
-		order.TransactionID = "VID-TRX-" + utils.GenerateRandomString(10)
+		trxID := "VID-TRX-" + utils.GenerateRandomString(10)
+		order.TransactionID = &trxID
 		order.PaymentType = "manual"
 		order.PaymentTime = &now
 		order.AccessGranted = true
 		order.AccessStart = &now
 
 		var video models.Video
-		if result := db.Where("id = ?", order.VideoID).First(&video); result.Error == nil {
+		if result := tx.Where("id = ?", order.VideoID).First(&video); result.Error == nil {
 			duration := video.AccessDurationDays
 			if duration == 0 {
 				duration = 30
@@ -287,9 +298,15 @@ func SimulateVideoPayment() fiber.Handler {
 			order.AccessEnd = &end
 		}
 
-		if result := db.Save(&order); result.Error != nil {
+		if result := tx.Save(&order); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to process payment")
 		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete payment")
+		}
+
 		return utils.SuccessResponse(c, fiber.StatusOK, "Video payment successful", order)
 	}
 }

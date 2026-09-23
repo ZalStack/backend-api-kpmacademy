@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -21,7 +23,7 @@ type RateLimiter struct {
 	window   time.Duration
 }
 
-func NewRateLimiter(limit int, windowSeconds int) *RateLimiter {
+func NewRateLimiter(limit, windowSeconds int) *RateLimiter {
 	rl := &RateLimiter{
 		visitors: make(map[string]*Visitor),
 		limit:    limit,
@@ -67,13 +69,66 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	return true
 }
 
-func RateLimit(limit int, windowSeconds int) fiber.Handler {
+func RateLimit(limit, windowSeconds int) fiber.Handler {
 	limiter := NewRateLimiter(limit, windowSeconds)
 
 	return func(c *fiber.Ctx) error {
 		ip := c.IP()
 		if !limiter.Allow(ip) {
 			return utils.ErrorResponse(c, 429, "Too many requests, please try again later", nil)
+		}
+		return c.Next()
+	}
+}
+
+var (
+	AuthRateLimiter   *RateLimiter
+	APIRateLimiter    *RateLimiter
+	StrictRateLimiter *RateLimiter
+)
+
+func init() {
+	authLimit := 30
+	apiLimit := 100
+	strictLimit := 15
+
+	if os.Getenv("APP_ENV") == "development" || os.Getenv("APP_ENV") == "test" {
+		authLimit = 500
+		apiLimit = 1000
+		strictLimit = 300
+	}
+
+	if val := os.Getenv("AUTH_RATE_LIMIT"); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			authLimit = n
+		}
+	}
+	if val := os.Getenv("STRICT_RATE_LIMIT"); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			strictLimit = n
+		}
+	}
+
+	AuthRateLimiter = NewRateLimiter(authLimit, 60)
+	APIRateLimiter = NewRateLimiter(apiLimit, 60)
+	StrictRateLimiter = NewRateLimiter(strictLimit, 60)
+}
+
+func AuthRateLimit() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ip := c.IP()
+		if !AuthRateLimiter.Allow(ip) {
+			return utils.ErrorResponse(c, 429, "Too many authentication requests, please try again later", nil)
+		}
+		return c.Next()
+	}
+}
+
+func StrictRateLimit() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ip := c.IP()
+		if !StrictRateLimiter.Allow(ip) {
+			return utils.ErrorResponse(c, 429, "Rate limit exceeded for this endpoint", nil)
 		}
 		return c.Next()
 	}

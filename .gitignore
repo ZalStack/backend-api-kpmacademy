@@ -16,8 +16,7 @@ backend-api-kpmacademy
 *.out
 
 # Go
-/vendor/
-/go.sum
+/vendor/ 
 
 # IDE
 .vscode/

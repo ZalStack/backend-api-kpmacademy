@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"os"
 	"time"
 
 	"backend-api-kpmacademy/database"
@@ -9,6 +10,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+)
+
+const (
+	statusPaid    = "paid"
+	statusPending = "pending"
+	envProduction = "production"
 )
 
 func CreateOrder() fiber.Handler {
@@ -59,7 +66,7 @@ func CreateOrder() fiber.Handler {
 			OrderNumber:    orderNumber,
 			TotalPrice:     totalPrice,
 			IsCustomAmount: req.IsCustomAmount,
-			PaymentStatus:  "pending",
+			PaymentStatus:  statusPending,
 			Enrollment:     "{}",
 		}
 
@@ -124,6 +131,10 @@ func GetOrderByID() fiber.Handler {
 
 func SimulatePayment() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if os.Getenv("APP_ENV") == envProduction {
+			return utils.ForbiddenResponse(c, "Endpoint not available in production")
+		}
+
 		uid, ok := utils.GetUserID(c)
 		if !ok {
 			return utils.UnauthorizedResponse(c, "Unauthorized")
@@ -138,19 +149,25 @@ func SimulatePayment() fiber.Handler {
 		if result := db.Where("id = ? AND user_id = ?", id, uid).First(&order); result.Error != nil {
 			return utils.NotFoundResponse(c, "Order not found or access denied")
 		}
-		if order.PaymentStatus != "pending" {
+		if order.PaymentStatus != statusPending {
 			return utils.BadRequestResponse(c, "Order is not pending", nil)
 		}
 
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
 		now := time.Now()
-		order.PaymentStatus = "paid"
-		order.TransactionID = "TRX-" + utils.GenerateRandomString(10)
+		order.PaymentStatus = statusPaid
+		trxID := "TRX-" + utils.GenerateRandomString(10)
+		order.TransactionID = &trxID
 		order.PaymentType = "manual"
 		order.PaymentTime = &now
 
 		if order.PackageID != nil {
 			var pkg models.Package
-			if result := db.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
+			if result := tx.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
 				dur := pkg.MembershipDurationDays
 				order.MembershipDurationDays = &dur
 				order.MembershipStart = &now
@@ -159,9 +176,15 @@ func SimulatePayment() fiber.Handler {
 			}
 		}
 
-		if result := db.Save(&order); result.Error != nil {
+		if result := tx.Save(&order); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to process payment")
 		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete payment")
+		}
+
 		return utils.SuccessResponse(c, fiber.StatusOK, "Payment successful", order)
 	}
 }
@@ -227,12 +250,29 @@ func AdminVerifyOrder() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
 			return utils.NotFoundResponse(c, "Order not found")
 		}
-		order.PaymentStatus = "paid"
+
+		if order.PaymentStatus == statusPaid {
+			return utils.BadRequestResponse(c, "Order is already paid/verified", nil)
+		}
+
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
+		order.PaymentStatus = statusPaid
 		now := time.Now()
 		order.PaymentTime = &now
+		if order.TransactionID == nil || *order.TransactionID == "" {
+			trxID := "TRX-" + utils.GenerateRandomString(10)
+			order.TransactionID = &trxID
+		}
+		if order.PaymentType == "" {
+			order.PaymentType = "manual_verification"
+		}
 		if order.PackageID != nil {
 			var pkg models.Package
-			if result := db.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
+			if result := tx.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
 				dur := pkg.MembershipDurationDays
 				order.MembershipDurationDays = &dur
 				order.MembershipStart = &now
@@ -240,9 +280,15 @@ func AdminVerifyOrder() fiber.Handler {
 				order.MembershipEnd = &end
 			}
 		}
-		if result := db.Save(&order); result.Error != nil {
+		if result := tx.Save(&order); result.Error != nil {
+			tx.Rollback()
 			return utils.InternalErrorResponse(c, "Failed to verify order")
 		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete order verification")
+		}
+
 		return utils.SuccessResponse(c, fiber.StatusOK, "Order verified", order)
 	}
 }
@@ -252,9 +298,9 @@ func GetAllTransactions() fiber.Handler {
 		db := database.GetDB()
 		page, perPage, offset := utils.GetPagination(c)
 		var total int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&total)
+		db.Model(&models.Order{}).Where("payment_status = ?", statusPaid).Count(&total)
 		var orders []models.Order
-		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", "paid").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
+		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", statusPaid).Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to retrieve transactions")
 		}
 		return utils.SuccessResponseWithPagination(c, "Transactions retrieved", orders, &utils.Pagination{
@@ -267,9 +313,9 @@ func GetTransactionStats() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		db := database.GetDB()
 		var totalRevenue float64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Select("COALESCE(SUM(total_price),0)").Scan(&totalRevenue)
+		db.Model(&models.Order{}).Where("payment_status = ?", statusPaid).Select("COALESCE(SUM(total_price),0)").Scan(&totalRevenue)
 		var totalTransactions int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&totalTransactions)
+		db.Model(&models.Order{}).Where("payment_status = ?", statusPaid).Count(&totalTransactions)
 		var totalUsers int64
 		db.Model(&models.User{}).Where("role = ?", "user").Count(&totalUsers)
 		return utils.SuccessResponse(c, fiber.StatusOK, "Stats retrieved", fiber.Map{
@@ -329,9 +375,9 @@ func GetEnrollKeys() fiber.Handler {
 		db := database.GetDB()
 		page, perPage, offset := utils.GetPagination(c)
 		var total int64
-		db.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&total)
+		db.Model(&models.Order{}).Where("payment_status = ?", statusPaid).Count(&total)
 		var orders []models.Order
-		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", "paid").Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
+		if result := db.Preload("User").Preload("Package").Where("payment_status = ?", statusPaid).Offset(offset).Limit(perPage).Order("created_at DESC").Find(&orders); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to retrieve enroll keys")
 		}
 		return utils.SuccessResponseWithPagination(c, "Enroll keys retrieved", orders, &utils.Pagination{
@@ -398,6 +444,11 @@ func AdminGrantVideoAccess() fiber.Handler {
 		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
 			return utils.NotFoundResponse(c, "Video order not found")
 		}
+
+		if order.AccessGranted {
+			return utils.BadRequestResponse(c, "Access already granted", nil)
+		}
+
 		var video models.Video
 		db.Where("id = ?", order.VideoID).First(&video)
 

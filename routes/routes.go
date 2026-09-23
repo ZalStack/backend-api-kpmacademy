@@ -1,7 +1,11 @@
 package routes
 
 import (
+	"time"
+
 	"backend-api-kpmacademy/config"
+	"backend-api-kpmacademy/database"
+	"backend-api-kpmacademy/docs"
 	"backend-api-kpmacademy/handlers"
 	"backend-api-kpmacademy/middleware"
 
@@ -9,13 +13,99 @@ import (
 )
 
 func SetupRoutes(app *fiber.App, cfg *config.Config) {
-	api := app.Group("/api")
+	// Root welcome endpoint
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"success": true,
+			"message": "Welcome to KPM Academy API",
+			"version": "v1.0.0",
+			"docs": fiber.Map{
+				"landing":   "/docs",
+				"scalar":    "/docs/scalar",
+				"reference": "/docs/reference",
+				"swagger":   "/docs/swagger",
+				"redoc":     "/docs/redoc",
+				"yaml":      "/docs/swagger.yaml",
+				"json":      "/docs/openapi.json",
+			},
+			"api_v1": "/api/v1",
+		})
+	})
+
+	// Modern API Documentation Endpoints
+	app.Get("/docs", docs.LandingPageHandler())
+	app.Get("/docs/scalar", docs.ScalarUIHandler())
+	app.Get("/docs/reference", docs.ScalarUIHandler())
+	app.Get("/docs/swagger", docs.SwaggerUIHandler())
+	app.Get("/docs/redoc", docs.RedocUIHandler())
+	app.Get("/docs/swagger.yaml", docs.SwaggerYAMLHandler())
+	app.Get("/docs/openapi.json", docs.OpenAPIJSONHandler())
+
+	// Primary versioned API routes (/api/v1)
+	v1 := app.Group("/api/v1")
+	registerAPIRoutes(v1, cfg)
+
+	// Backward compatibility alias (/api)
+	legacy := app.Group("/api")
+	registerAPIRoutes(legacy, cfg)
+
+	// Fallback 404 handler for undefined routes
+	app.Use(func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Route not found",
+		})
+	})
+}
+
+func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	auth := middleware.AuthProtected(cfg)
 	admin := middleware.AdminOnly()
 
-	api.Get("/health", func(c *fiber.Ctx) error {
+	// API info endpoint
+	api.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"success": true, "message": "KPM Academy API is running",
+			"success": true,
+			"message": "KPM Academy API v1",
+			"endpoints": fiber.Map{
+				"health":       "/health",
+				"auth":         "/auth",
+				"profile":      "/profile",
+				"dashboard":    "/dashboard",
+				"packages":     "/packages",
+				"videos":       "/videos",
+				"orders":       "/orders",
+				"practice":     "/practice",
+				"testimonials": "/testimonials",
+				"kontak-form":  "/kontak-form",
+				"support":      "/support",
+				"chat":         "/chat",
+				"admin":        "/admin",
+				"docs":         "/docs",
+			},
+		})
+	})
+
+	api.Get("/health", func(c *fiber.Ctx) error {
+		db := database.GetDB()
+		sqlDB, err := db.DB()
+		if err != nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"message": "Database connection error",
+			})
+		}
+		if err := sqlDB.Ping(); err != nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"message": "Database unreachable",
+			})
+		}
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"success": true,
+			"message": "KPM Academy API is running",
+			"version": "v1",
+			"time":    time.Now().Format(time.RFC3339),
 		})
 	})
 
@@ -24,20 +114,19 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	api.Get("/packages/:id", handlers.GetPackageByID())
 	api.Get("/videos", handlers.GetAllVideos())
 	api.Get("/videos/:id", handlers.GetVideoByID())
-	api.Post("/kontak-form", handlers.CreateContactForm())
-	api.Post("/support/submit", handlers.SubmitSupport())
-	api.Post("/chat/send", handlers.SendChatMessage())
-	api.Get("/chat/history", handlers.GetChatHistory())
-	api.Post("/payment/notification", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
-	})
+	api.Post("/kontak-form", middleware.AuthRateLimit(), handlers.CreateContactForm())
+	api.Post("/support/submit", middleware.AuthRateLimit(), handlers.SubmitSupport())
+	api.Post("/chat/send", middleware.AuthRateLimit(), handlers.SendChatMessage())
+	api.Get("/chat/history", auth, handlers.GetChatHistory())
+	api.Post("/payment/notification", handlers.MidtransWebhook())
+	api.Post("/payment/video-notification", handlers.MidtransVideoWebhook())
 
 	authGroup := api.Group("/auth")
-	authGroup.Post("/register", handlers.Register(cfg))
-	authGroup.Post("/login", handlers.Login(cfg))
+	authGroup.Post("/register", middleware.AuthRateLimit(), handlers.Register(cfg))
+	authGroup.Post("/login", middleware.AuthRateLimit(), handlers.Login(cfg))
 	authGroup.Post("/refresh-token", handlers.RefreshToken(cfg))
-	authGroup.Post("/forgot-password", handlers.ForgotPassword(cfg))
-	authGroup.Post("/reset-password", handlers.ResetPassword(cfg))
+	authGroup.Post("/forgot-password", middleware.StrictRateLimit(), handlers.ForgotPassword(cfg))
+	authGroup.Post("/reset-password", middleware.StrictRateLimit(), handlers.ResetPassword(cfg))
 	authGroup.Post("/logout", auth, handlers.Logout(cfg))
 
 	api.Get("/profile", auth, handlers.GetProfile())

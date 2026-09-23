@@ -8,16 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func GetPagination(c *fiber.Ctx) (int, int, int) {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
+func GetPagination(c *fiber.Ctx) (page, perPage, offset int) {
+	page, _ = strconv.Atoi(c.Query("page", "1"))         //nolint:errcheck // default "1" is always valid
+	perPage, _ = strconv.Atoi(c.Query("per_page", "10")) //nolint:errcheck // default "10" is always valid
 	if page < 1 {
 		page = 1
 	}
 	if perPage < 1 || perPage > 100 {
 		perPage = 10
 	}
-	offset := (page - 1) * perPage
+	offset = (page - 1) * perPage
 	return page, perPage, offset
 }
 
@@ -35,7 +35,7 @@ func GetUserID(c *fiber.Ctx) (uuid.UUID, bool) {
 }
 
 func GetUserRole(c *fiber.Ctx) string {
-	role, _ := c.Locals("user_role").(string)
+	role, _ := c.Locals("user_role").(string) //nolint:errcheck // type assertion false is handled
 	return role
 }
 

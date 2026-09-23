@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPM Academy — API Documentation</title>
+  <meta name="description" content="Complete RESTful API documentation for KPM Academy UTBK/SNBT Learning Platform.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--tb:68px;--bg:#06080f;--bgc:#0c1021;--bge:#111631;--bd:#1a2140;--bdl:#232b4a;--tx:#f0f4ff;--mt:#7a88b0;--pr:#3b82f6;--prl:#60a5fa;--prg:rgba(59,130,246,.3);--pu:#8b5cf6;--pug:rgba(139,92,246,.25);--ok:#10b981;--okg:rgba(16,185,129,.25);--wn:#f59e0b;--dn:#ef4444;--cy:#06b6d4;--pk:#ec4899;--or:#f97316}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{margin:0;padding-top:var(--tb);background:var(--bg);font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;color:var(--tx);line-height:1.6;overflow-x:hidden}
+    ::selection{background:rgba(59,130,246,.35);color:#fff}
+    ::-webkit-scrollbar{width:8px}
+    ::-webkit-scrollbar-track{background:var(--bg)}
+    ::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:4px}
+    ::-webkit-scrollbar-thumb:hover{background:#3b4570}
+    .tb{position:fixed;top:0;left:0;right:0;height:var(--tb);background:rgba(6,8,15,.6);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:999999;transition:background .35s,border-color .35s,box-shadow .35s}
+    .tb.scrolled{background:rgba(6,8,15,.92);border-bottom-color:rgba(255,255,255,.1);box-shadow:0 4px 30px rgba(0,0,0,.4)}
+    .tb-br{display:flex;align-items:center;gap:14px}
+    .tb-a{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--tx)}
+    .tb-ico{width:38px;height:38px;background:linear-gradient(135deg,#2563eb,#7c3aed,#ec4899);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 16px rgba(37,99,235,.45);animation:lf 3s ease-in-out infinite}
+    @keyframes lf{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+    .tb-txt{display:flex;flex-direction:column;line-height:1.2}
+    .tb-t{font-size:16px;font-weight:800;letter-spacing:-.02em}
+    .tb-s{font-size:11px;color:var(--mt);font-weight:500}
+    .tb-n{display:flex;align-items:center;gap:4px}
+    .tb-n a{display:flex;align-items:center;gap:7px;text-decoration:none;font-size:13px;font-weight:500;color:var(--mt);padding:7px 14px;border-radius:8px;transition:all .2s}
+    .tb-n a:hover{color:#fff;background:rgba(255,255,255,.07)}
+    .tb-n a.ac{color:#fff;background:var(--pr);font-weight:600;box-shadow:0 2px 12px var(--prg)}
+    .tb-sep{width:1px;height:20px;background:var(--bd);margin:0 8px}
+    .tb-sp{display:flex;align-items:center;gap:6px}
+    .tb-sp a{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;color:#94a3c8;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);padding:5px 10px;border-radius:6px;text-decoration:none;transition:all .2s}
+    .tb-sp a:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff}
+    .hb{display:none;background:none;border:none;cursor:pointer;padding:8px;border-radius:8px;transition:background .2s}
+    .hb:hover{background:rgba(255,255,255,.07)}
+    .hb svg{display:block}
+    .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999998;opacity:0;transition:opacity .3s}
+    .ov.op{display:block;opacity:1}
+    .dr{position:fixed;top:0;right:-300px;width:280px;height:100vh;background:#0c1021;border-left:1px solid var(--bd);z-index:999999;padding:80px 20px 30px;transition:right .3s cubic-bezier(.4,0,.2,1);overflow-y:auto}
+    .dr.op{right:0}
+    .dr-x{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--mt);cursor:pointer;padding:6px;border-radius:6px;transition:all .2s}
+    .dr-x:hover{color:#fff;background:rgba(255,255,255,.07)}
+    .dr-n{display:flex;flex-direction:column;gap:4px}
+    .dr-n a{display:flex;align-items:center;gap:10px;text-decoration:none;font-size:14px;font-weight:500;color:var(--mt);padding:12px 14px;border-radius:10px;transition:all .2s}
+    .dr-n a:hover{color:#fff;background:rgba(255,255,255,.06)}
+    .dr-n a.ac{color:#fff;background:var(--pr)}
+    .dr-sp{margin-top:20px;padding-top:20px;border-top:1px solid var(--bd);display:flex;gap:8px}
+    .dr-sp a{flex:1;text-align:center;font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:600;color:var(--mt);text-decoration:none;padding:10px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--bd);transition:all .2s}
+    .dr-sp a:hover{color:#fff;border-color:var(--pr)}
+    @media(max-width:768px){.tb-n,.tb-sep,.tb-sp{display:none!important}.hb{display:flex;align-items:center;justify-content:center}}
+    .hero{position:relative;min-height:90vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 24px 80px;overflow:hidden}
+    .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(59,130,246,.18),transparent),radial-gradient(ellipse 60% 50% at 80% 20%,rgba(139,92,246,.12),transparent),radial-gradient(ellipse 50% 40% at 20% 60%,rgba(6,182,212,.08),transparent);pointer-events:none}
+    .hero-g{position:absolute;inset:0;background-image:linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 70% 60% at 50% 30%,black,transparent);-webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 30%,black,transparent);animation:gm 20s linear infinite}
+    @keyframes gm{0%{transform:translate(0,0)}10%{transform:translate(6px,6px)}100%{transform:translate(60px,60px)}}
+    .hero-c{position:relative;z-index:1;max-width:820px}
+    .hero-b{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--prl);background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);padding:6px 16px;border-radius:100px;margin-bottom:28px;animation:fiu .6s ease-out}
+    .hero-b .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px rgba(16,185,129,.8);animation:pu 2s infinite}
+    @keyframes pu{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+    .hero h1{font-size:clamp(36px,6vw,68px);font-weight:900;line-height:1.08;letter-spacing:-.035em;margin-bottom:20px;animation:fiu .6s ease-out .1s both}
+    .hero h1 .gd{background:linear-gradient(135deg,#60a5fa,#a78bfa,#f472b6,#60a5fa);background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gda 6s ease-in-out infinite}
+    @keyframes gda{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    .hero p{font-size:clamp(16px,2vw,19px);color:var(--mt);max-width:580px;margin:0 auto 36px;line-height:1.7;animation:fiu .6s ease-out .2s both}
+    .hero-a{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;animation:fiu .6s ease-out .3s both}
+    @keyframes fiu{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    .btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;text-decoration:none;border-radius:10px;padding:13px 26px;transition:all .25s;border:none;cursor:pointer;font-family:inherit}
+    .btn-p{background:var(--pr);color:#fff;box-shadow:0 4px 20px var(--prg)}
+    .btn-p:hover{background:#2563eb;box-shadow:0 6px 30px rgba(59,130,246,.45);transform:translateY(-2px)}
+    .btn-g{background:rgba(255,255,255,.05);color:var(--tx);border:1px solid var(--bdl)}
+    .btn-g:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);transform:translateY(-2px)}
+    .orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;opacity:.5;animation:orbF 12s ease-in-out infinite alternate}
+    .orb-1{width:400px;height:400px;background:rgba(59,130,246,.2);top:-10%;left:-5%;animation-delay:0s}
+    .orb-2{width:350px;height:350px;background:rgba(139,92,246,.18);top:10%;right:-8%;animation-delay:-3s}
+    .orb-3{width:300px;height:300px;background:rgba(236,72,153,.12);bottom:5%;left:20%;animation-delay:-6s}
+    .orb-4{width:250px;height:250px;background:rgba(6,182,212,.1);top:50%;left:60%;animation-delay:-9s}
+    @keyframes orbF{0%{transform:translate(0,0) scale(1)}33%{transform:translate(30px,-20px) scale(1.05)}66%{transform:translate(-20px,30px) scale(.95)}100%{transform:translate(10px,-10px) scale(1.02)}}
+    .burl{max-width:520px;margin:0 auto 50px;animation:fiu .6s ease-out .35s both}
+    .burl-i{display:flex;align-items:center;gap:10px;background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;font-family:"JetBrains Mono",monospace;font-size:14px;color:var(--prl);transition:border-color .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .burl-i:hover{border-color:var(--pr)}
+    .burl-lb{font-family:"Inter",sans-serif;font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    .burl-v{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cpbtn{background:none;border:none;cursor:pointer;color:var(--mt);padding:4px;border-radius:6px;transition:all .2s;flex-shrink:0}
+    .cpbtn:hover{color:#fff;background:rgba(255,255,255,.08)}
+    .cpbtn.cp{color:var(--ok)}
+    .stats{display:flex;justify-content:center;gap:48px;margin-bottom:80px;animation:fiu .6s ease-out .4s both;flex-wrap:wrap}
+    .st{text-align:center}
+    .st-n{font-size:32px;font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .st-l{font-size:13px;color:var(--mt);font-weight:500;margin-top:2px}
+    .sec{max-width:1200px;margin:0 auto;padding:0 24px 80px}
+    .sec-h{text-align:center;margin-bottom:48px}
+    .sec-tg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--pu);background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);padding:5px 14px;border-radius:100px;margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
+    .sec-tt{font-size:clamp(28px,4vw,40px);font-weight:800;letter-spacing:-.03em;margin-bottom:12px}
+    .sec-d{font-size:16px;color:var(--mt);max-width:540px;margin:0 auto}
+    .sa{opacity:0;transform:translateY(30px);transition:opacity .7s ease-out,transform .7s ease-out}
+    .sa.v{opacity:1;transform:translateY(0)}
+    .qs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+    .st2{background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:16px;padding:28px;transition:all .3s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .st2:hover{border-color:var(--pr);box-shadow:0 8px 32px rgba(59,130,246,.12),0 0 0 1px rgba(59,130,246,.1);transform:translateY(-4px)}
+    .st2-n{width:36px;height:36px;background:linear-gradient(135deg,var(--pr),var(--pu));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;margin-bottom:18px}
+    .st2 h3{font-size:17px;font-weight:700;margin-bottom:8px;letter-spacing:-.01em}
+    .st2 p{font-size:14px;color:var(--mt);line-height:1.6}
+    .cb{background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin-top:20px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .cb-h{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--bd)}
+    .cb-t{display:flex;gap:2px}
+    .cb-tb{font-size:12px;font-weight:600;color:var(--mt);padding:5px 12px;border-radius:6px;background:none;border:none;cursor:pointer;transition:all .2s}
+    .cb-tb:hover{color:#fff;background:rgba(255,255,255,.06)}
+    .cb-tb.ac{color:#fff;background:var(--pr)}
+    .cb-cp{font-size:12px;font-weight:500;color:var(--mt);background:none;border:1px solid var(--bd);padding:4px 10px;border-radius:6px;cursor:pointer;transition:all .2s}
+    .cb-cp:hover{color:#fff;border-color:rgba(255,255,255,.2)}
+    .cb-b{padding:18px 20px;font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1.7;overflow-x:auto;color:#c9d1e0;white-space:pre}
+    .cb-b .kw{color:#c792ea}.cb-b .s{color:#c3e88d}.cb-b .n{color:#f78c6c}.cb-b .c{color:#546e7a;font-style:italic}.cb-b .f{color:#82aaff}.cb-b .o{color:#89ddff}.cb-b .k{color:#ffcb6b}
+    .ep-search{display:flex;align-items:center;gap:10px;max-width:480px;margin:0 auto 32px;background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:12px;padding:0 16px;transition:border-color .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .ep-search:focus-within{border-color:var(--pr);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+    .ep-search svg{flex-shrink:0;color:var(--mt)}
+    .ep-search input{flex:1;background:none;border:none;outline:none;color:var(--tx);font-size:14px;font-family:inherit;padding:14px 0;width:100%}
+    .ep-search input::placeholder{color:#4a5278}
+    .epg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .epc{background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:14px;padding:24px;text-decoration:none;color:var(--tx);transition:all .3s;position:relative;overflow:hidden;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .epc::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--pr));opacity:0;transition:opacity .3s}
+    .epc:hover{border-color:var(--ac,var(--pr));box-shadow:0 8px 32px rgba(0,0,0,.3);transform:translateY(-3px)}
+    .epc:hover::before{opacity:1}
+    .epc.hidden{display:none}
+    .epc-i{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;background:var(--ib,rgba(59,130,246,.12))}
+    .epc h3{font-size:16px;font-weight:700;margin-bottom:6px;letter-spacing:-.01em}
+    .epc p{font-size:13px;color:var(--mt);margin-bottom:14px;line-height:1.5}
+    .epc-et{display:flex;flex-wrap:wrap;gap:6px}
+    .epc-tg{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.04);border:1px solid var(--bd);color:var(--mt)}
+    .epc-tg.get{color:#60a5fa;border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.08)}
+    .epc-tg.post{color:#34d399;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
+    .epc-tg.put{color:#fbbf24;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08)}
+    .epc-tg.delete{color:#f87171;border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.08)}
+    .epc-lk{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--prl);text-decoration:none;margin-top:14px;transition:all .2s}
+    .epc-lk:hover{color:#fff;transform:translateX(3px)}
+    .ep-no{grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--mt);font-size:15px;display:none}
+    .af{background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:16px;padding:40px;position:relative;overflow:hidden;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .af::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(139,92,246,.08),transparent);pointer-events:none}
+    .af-t{font-size:22px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;position:relative}
+    .af-s{font-size:14px;color:var(--mt);margin-bottom:32px;position:relative}
+    .af-st{display:flex;flex-direction:column;gap:0;position:relative}
+    .af-s2{display:flex;gap:20px;position:relative}
+    .af-ln{display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0}
+    .af-dot{width:14px;height:14px;border-radius:50%;background:var(--pr);border:3px solid var(--bgc);box-shadow:0 0 0 2px var(--pr);z-index:1;flex-shrink:0}
+    .af-wire{width:2px;flex:1;background:linear-gradient(to bottom,var(--pr),rgba(59,130,246,.15));margin-top:4px}
+    .af-s2:last-child .af-wire{display:none}
+    .af-s2-c{flex:1;padding-bottom:28px}
+    .af-s2 h4{font-size:15px;font-weight:700;margin-bottom:4px}
+    .af-s2 p{font-size:13px;color:var(--mt);line-height:1.5}
+    .af-method{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px}
+    .af-method.post{background:rgba(52,211,153,.15);color:#34d399}
+    .af-method.get{background:rgba(96,165,250,.15);color:#60a5fa}
+    .rl-wrap{background:rgba(12,16,33,.6);border:1px solid var(--bd);border-radius:16px;padding:40px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow-x:auto}
+    .rl-tbl{width:100%;border-collapse:collapse}
+    .rl-tbl th{text-align:left;font-size:12px;font-weight:600;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;padding:12px 16px;border-bottom:1px solid var(--bd)}
+    .rl-tbl td{font-size:14px;padding:14px 16px;border-bottom:1px solid rgba(26,33,64,.5)}
+    .rl-tbl tr:last-child td{border-bottom:none}
+    .rl-tbl tr:hover td{background:rgba(255,255,255,.02)}
+    .rl-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px}
+    .rl-badge.b1{color:#60a5fa;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.2)}
+    .rl-badge.b2{color:#fbbf24;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2)}
+    .rl-badge.b3{color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2)}
+    .ft{text-align:center;padding:40px 24px;border-top:1px solid var(--bd);margin-top:20px}
+    .ft-p{font-size:13px;color:var(--mt)}
+    .ft-p a{color:var(--prl);text-decoration:none;font-weight:600}
+    .ft-p a:hover{text-decoration:underline}
+    .ft-links{display:flex;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap}
+    .ft-links a{font-size:12px;color:var(--mt);text-decoration:none;transition:color .2s}
+    .ft-links a:hover{color:#fff}
+    @media(max-width:480px){.hero{min-height:70vh;padding:40px 16px 60px}.hero h1{font-size:32px}.hero p{font-size:15px}.hero-a{flex-direction:column;gap:10px}.hero-a .btn{width:100%;justify-content:center}.burl-i{flex-direction:column;align-items:flex-start;gap:8px}.burl-lb{font-size:10px}.af{padding:24px}.rl-wrap{padding:20px}.sec{padding:0 16px 60px}.qs{grid-template-columns:1fr}.epg{grid-template-columns:1fr}.stats{gap:20px}.st-n{font-size:24px}.tb{padding:0 16px}}
+    @media(min-width:481px) and (max-width:640px){.hero h1{font-size:clamp(32px,5.5vw,48px)}.stats{gap:28px}.st-n{font-size:26px}.qs{grid-template-columns:1fr}.epg{grid-template-columns:1fr}}
+    @media(min-width:641px) and (max-width:768px){.tb{padding:0 16px}.qs{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}}
+    @media(min-width:769px) and (max-width:1024px){.qs{grid-template-columns:repeat(3,1fr)}.epg{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:1025px) and (max-width:1280px){.epg{grid-template-columns:repeat(3,1fr)}}
+    @media(min-width:1281px){.sec{max-width:1320px}.epg{grid-template-columns:repeat(4,1fr)}}
+  </style>
+</head>
+<body>
+  <header class="tb" id="topbar">
+    <div class="tb-br">
+      <a href="/docs" class="tb-a">
+        <div class="tb-ico">🎓</div>
+        <div class="tb-txt"><span class="tb-t">KPM Academy</span><span class="tb-s">API Documentation</span></div>
+      </a>
+    </div>
+    <nav class="tb-n">
+      <a href="/docs" class="ac"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg> Overview</a>
+      <a href="/docs/scalar"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Reference (Scalar)</a>
+      <a href="/docs/swagger"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Swagger</a>
+      <a href="/docs/redoc"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> Redoc</a>
+      <div class="tb-sep"></div>
+      <div class="tb-sp">
+        <a href="/docs/swagger.yaml" target="_blank">YAML</a>
+        <a href="/docs/openapi.json" target="_blank">JSON</a>
+      </div>
+    </nav>
+    <button class="hb" onclick="toggleDrawer()" aria-label="Menu">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </header>
+  <div class="ov" id="overlay" onclick="toggleDrawer()"></div>
+  <div class="dr" id="drawer">
+    <button class="dr-x" onclick="toggleDrawer()"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    <nav class="dr-n">
+      <a href="/docs" class="ac"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg> Overview</a>
+      <a href="/docs/scalar"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Reference (Scalar)</a>
+      <a href="/docs/swagger"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Swagger UI</a>
+      <a href="/docs/redoc"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> Redoc</a>
+    </nav>
+    <div class="dr-sp">
+      <a href="/docs/swagger.yaml" target="_blank">YAML</a>
+      <a href="/docs/openapi.json" target="_blank">JSON</a>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div class="hero-g"></div>
+    <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div><div class="orb orb-4"></div>
+    <div class="hero-c">
+      <div class="hero-b"><span class="dot"></span> API v1.0.0 — Live</div>
+      <h1>KPM Academy<br><span class="gd">API Documentation</span></h1>
+      <p>A comprehensive RESTful API for the KPM Academy UTBK/SNBT learning platform. JWT authentication, package management, order processing, practice sessions, and full admin panel.</p>
+      <div class="hero-a">
+        <a href="/docs/scalar" class="btn btn-p">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Interactive Reference (Scalar)
+        </a>
+        <a href="/docs/swagger" class="btn btn-g">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Swagger Explorer
+        </a>
+        <a href="#quickstart" class="btn btn-g">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          Quick Start Guide
+        </a>
+      </div>
+      <div class="burl">
+        <div class="burl-i">
+          <span class="burl-lb">Base URL</span>
+          <span class="burl-v" id="baseUrl">http://localhost:3000/api/v1</span>
+          <button class="cpbtn" onclick="copyUrl()" title="Copy"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="st"><div class="st-n">90+</div><div class="st-l">Endpoints</div></div>
+        <div class="st"><div class="st-n">14</div><div class="st-l">Modules</div></div>
+        <div class="st"><div class="st-n">JWT</div><div class="st-l">Auth System</div></div>
+        <div class="st"><div class="st-n">REST</div><div class="st-l">Architecture</div></div>
+      </div>
+
+    </div>
+  </section>
+  <section class="sec sa" id="quickstart">
+    <div class="sec-h">
+      <div class="sec-tg">⚡ Getting Started</div>
+      <h2 class="sec-tt">Quick Start Guide</h2>
+      <p class="sec-d">Get started with the KPM Academy API in 3 simple steps.</p>
+    </div>
+    <div class="qs">
+      <div class="st2">
+        <div class="st2-n">1</div>
+        <h3>Register / Login</h3>
+        <p>Create a new account or sign in with an existing email to receive your JWT access and refresh tokens.</p>
+      </div>
+      <div class="st2">
+        <div class="st2-n">2</div>
+        <h3>Get Token</h3>
+        <p>Save the <code>access_token</code> from the response. Include it in every request header: <code>Authorization: Bearer &lt;token&gt;</code></p>
+      </div>
+      <div class="st2">
+        <div class="st2-n">3</div>
+        <h3>Make Requests</h3>
+        <p>Access all API endpoints. Use the <code>refresh_token</code> to obtain a new access token when the current one expires.</p>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="cb-h">
+        <div class="cb-t">
+          <button class="cb-tb ac" onclick="showTab(this,'curl')">cURL</button>
+          <button class="cb-tb" onclick="showTab(this,'js')">JavaScript</button>
+          <button class="cb-tb" onclick="showTab(this,'py')">Python</button>
+        </div>
+        <button class="cb-cp" onclick="copyCode(this)">Copy</button>
+      </div>
+      <div class="cb-b" id="code-curl"><span class="c"># Register new user</span>
+<span class="f">curl</span> -X POST http://localhost:3000/api/v1/auth/register \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{
+    "name": "Ahmad Fauzi",
+    "email": "ahmad@kpm.ac.id",
+    "password": "Secure@123",
+    "phone": "08123456789"
+  }'</span>
+
+<span class="c"># Login</span>
+<span class="f">curl</span> -X POST http://localhost:3000/api/v1/auth/login \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"email": "ahmad@kpm.ac.id", "password": "Secure@123"}'</span>
+
+<span class="c"># Use token for authenticated requests</span>
+<span class="f">curl</span> http://localhost:3000/api/v1/profile \
+  -H <span class="s">"Authorization: Bearer YOUR_ACCESS_TOKEN"</span></div>
+      <div class="cb-b" id="code-js" style="display:none"><span class="c">// Register & Login</span>
+<span class="kw">const</span> <span class="f">register</span> = <span class="kw">async</span> () =&gt; {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'http://localhost:3000/api/v1/auth/register'</span>, {
+    <span class="k">method</span>: <span class="s">'POST'</span>,
+    <span class="k">headers</span>: { <span class="s">'Content-Type'</span>: <span class="s">'application/json'</span> },
+    <span class="k">body</span>: JSON.<span class="f">stringify</span>({
+      <span class="k">name</span>: <span class="s">'Ahmad Fauzi'</span>,
+      <span class="k">email</span>: <span class="s">'ahmad@kpm.ac.id'</span>,
+      <span class="k">password</span>: <span class="s">'Secure@123'</span>
+    })
+  });
+  <span class="kw">const</span> { data } = <span class="kw">await</span> res.<span class="f">json</span>();
+  <span class="kw">const</span> token = data.<span class="k">tokens</span>.<span class="k">access_token</span>;
+
+  <span class="c">// Use token</span>
+  <span class="kw">const</span> profile = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'http://localhost:3000/api/v1/profile'</span>, {
+    <span class="k">headers</span>: { <span class="s">'Authorization'</span>: <span class="s">`Bearer ${token}`</span> }
+  });
+};</div>
+      <div class="cb-b" id="code-py" style="display:none"><span class="kw">import</span> requests
+
+<span class="c"># Register</span>
+res = requests.<span class="f">post</span>(<span class="s">"http://localhost:3000/api/v1/auth/register"</span>, <span class="k">json</span>={
+    <span class="s">"name"</span>: <span class="s">"Ahmad Fauzi"</span>,
+    <span class="s">"email"</span>: <span class="s">"ahmad@kpm.ac.id"</span>,
+    <span class="s">"password"</span>: <span class="s">"Secure@123"</span>
+})
+token = res.<span class="f">json</span>()[<span class="s">"data"</span>][<span class="s">"tokens"</span>][<span class="s">"access_token"</span>]
+
+<span class="c"># Authenticated request</span>
+profile = requests.<span class="f">get</span>(
+    <span class="s">"http://localhost:3000/api/v1/profile"</span>,
+    <span class="k">headers</span>={<span class="s">"Authorization"</span>: <span class="kw">f</span><span class="s">"Bearer {token}"</span>}
+)</div>
+    </div>
+  </section>
+  <section class="sec sa" id="endpoints">
+    <div class="sec-h">
+      <div class="sec-tg">📡 Endpoints</div>
+      <h2 class="sec-tt">API Endpoints</h2>
+      <p class="sec-d">All available API endpoints, organized by module.</p>
+    </div>
+    <div class="ep-search">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input type="text" id="epSearch" placeholder="Search endpoints by name or path..." oninput="filterEndpoints()">
+    </div>
+    <div class="epg">
+      <div class="epc" style="--ac:#3b82f6;--ib:rgba(59,130,246,.12)" data-name="Authentication" data-paths="/auth/register /auth/login /auth/refresh-token /auth/forgot-password /auth/reset-password /auth/logout">
+        <div class="epc-i">🔑</div>
+        <h3>Authentication</h3>
+        <p>Register, login, token refresh, forgot &amp; reset password flows.</p>
+        <div class="epc-et">
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/register</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/login</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/refresh-token</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/forgot-password</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/reset-password</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/auth/logout</span>
+        </div>
+        <a href="/docs/scalar#/tag/Auth" class="epc-lk">Explore Auth in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#8b5cf6;--ib:rgba(139,92,246,.12)" data-name="Profile & Dashboard" data-paths="/profile /profile/change-password /dashboard">
+        <div class="epc-i">👤</div>
+        <h3>Profile &amp; Dashboard</h3>
+        <p>Get/update user profile, change password, view dashboard statistics.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/profile</span>
+          <span class="epc-tg put">PUT</span><span class="epc-tg">/profile</span>
+          <span class="epc-tg put">PUT</span><span class="epc-tg">/profile/change-password</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/dashboard</span>
+        </div>
+        <a href="/docs/scalar#/tag/Profile" class="epc-lk">Explore Profile in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#06b6d4;--ib:rgba(6,182,212,.12)" data-name="Packages" data-paths="/packages /packages/:id">
+        <div class="epc-i">📚</div>
+        <h3>Packages</h3>
+        <p>Browse learning packages, filter by grade level and education stage.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/packages</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/packages/:id</span>
+        </div>
+        <a href="/docs/scalar#/tag/Packages" class="epc-lk">Explore Packages in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#ec4899;--ib:rgba(236,72,153,.12)" data-name="Videos" data-paths="/videos /videos/:id /videos/:id/order /videos/:id/pay/:orderId">
+        <div class="epc-i">🎬</div>
+        <h3>Videos</h3>
+        <p>Learning videos with ordering and payment simulation support.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/videos</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/videos/:id</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/videos/:id/order</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/videos/:id/pay/:orderId</span>
+        </div>
+        <a href="/docs/scalar#/tag/Videos" class="epc-lk">Explore Videos in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#f97316;--ib:rgba(249,115,22,.12)" data-name="Orders & Payments" data-paths="/orders /orders/:id /orders/:id/pay">
+        <div class="epc-i">💳</div>
+        <h3>Orders &amp; Payments</h3>
+        <p>Create orders, check payment status, simulate payment processing.</p>
+        <div class="epc-et">
+          <span class="epc-tg post">POST</span><span class="epc-tg">/orders</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/orders</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/orders/:id</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/orders/:id/pay</span>
+        </div>
+        <a href="/docs/scalar#/tag/Orders" class="epc-lk">Explore Orders in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#10b981;--ib:rgba(16,185,129,.12)" data-name="Practice Sessions" data-paths="/practice/start /practice/submit /practice/history /practice/statistics">
+        <div class="epc-i">📝</div>
+        <h3>Practice Sessions</h3>
+        <p>Start practice sessions, submit answers, view history and statistics.</p>
+        <div class="epc-et">
+          <span class="epc-tg post">POST</span><span class="epc-tg">/practice/start</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/practice/submit</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/practice/history</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/practice/statistics</span>
+        </div>
+        <a href="/docs/scalar#/tag/Practice" class="epc-lk">Explore Practice in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#f59e0b;--ib:rgba(245,158,11,.12)" data-name="Testimonials & Contact" data-paths="/testimonials /kontak-form /support/submit">
+        <div class="epc-i">💬</div>
+        <h3>Testimonials &amp; Contact</h3>
+        <p>Public testimonials, contact form submission, and support tickets.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/testimonials</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/testimonials</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/kontak-form</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/support/submit</span>
+        </div>
+        <a href="/docs/scalar#/tag/Testimonials" class="epc-lk">Explore Testimonials in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#a78bfa;--ib:rgba(167,139,250,.12)" data-name="Notifications" data-paths="/notifications /notifications/unread-count /notifications/:id/read /notifications/read-all">
+        <div class="epc-i">📢</div>
+        <h3>Notifications</h3>
+        <p>User notifications, unread count tracking, mark as read.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/notifications</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/notifications/unread-count</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/notifications/:id/read</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/notifications/read-all</span>
+        </div>
+        <a href="/docs/scalar#/tag/Notifications" class="epc-lk">Explore Notifications in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#f472b6;--ib:rgba(244,114,182,.12)" data-name="AI Chat" data-paths="/chat/send /chat/history">
+        <div class="epc-i">🤖</div>
+        <h3>AI Chat</h3>
+        <p>Send messages to the AI assistant and view chat history.</p>
+        <div class="epc-et">
+          <span class="epc-tg post">POST</span><span class="epc-tg">/chat/send</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/chat/history</span>
+        </div>
+        <a href="/docs/scalar#/tag/Chat" class="epc-lk">Explore AI Chat in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#ef4444;--ib:rgba(239,68,68,.12)" data-name="Admin Panel" data-paths="/admin/dashboard /admin/users /admin/packages /admin/videos /admin/orders /admin/transactions">
+        <div class="epc-i">🛡️</div>
+        <h3>Admin Panel</h3>
+        <p>Full CRUD for users, packages, videos, orders, and content moderation.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/dashboard</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/users</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/admin/packages</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/admin/videos</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/orders</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/transactions</span>
+        </div>
+        <a href="/docs/scalar#/tag/Admin---Dashboard" class="epc-lk">Explore Admin in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#22d3ee;--ib:rgba(34,211,238,.12)" data-name="Enrollment & Reports" data-paths="/admin/enroll-keys /admin/practice-statistics /admin/reports">
+        <div class="epc-i">🏷️</div>
+        <h3>Enrollment &amp; Reports</h3>
+        <p>Enrollment keys, practice statistics for admin, and reporting endpoints.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/enroll-keys</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/practice-statistics</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/admin/reports</span>
+        </div>
+        <a href="/docs/scalar#/tag/Admin---Enroll-Keys" class="epc-lk">Explore Keys in Reference &rarr;</a>
+      </div>
+      <div class="epc" style="--ac:#818cf8;--ib:rgba(129,140,248,.12)" data-name="Webhook & Health" data-paths="/health / /payment/notification">
+        <div class="epc-i">🔄</div>
+        <h3>Webhook &amp; Health</h3>
+        <p>Payment webhook receiver, health check, and API info endpoint.</p>
+        <div class="epc-et">
+          <span class="epc-tg get">GET</span><span class="epc-tg">/health</span>
+          <span class="epc-tg get">GET</span><span class="epc-tg">/</span>
+          <span class="epc-tg post">POST</span><span class="epc-tg">/payment/notification</span>
+        </div>
+        <a href="/docs/scalar#/tag/Health" class="epc-lk">Explore Health in Reference &rarr;</a>
+      </div>
+      <div class="ep-no" id="epNoResult">No endpoints found matching your search.</div>
+    </div>
+  </section>
+  <section class="sec sa" id="auth">
+    <div class="sec-h">
+      <div class="sec-tg">🔒 Authentication</div>
+      <h2 class="sec-tt">JWT Authentication Flow</h2>
+      <p class="sec-d">JWT-based authentication with access and refresh token rotation.</p>
+    </div>
+    <div class="af">
+      <div class="af-t">Authentication Flow</div>
+      <div class="af-s">Login to receive a token pair, use the access token for requests, and refresh when expired.</div>
+      <div class="af-st">
+        <div class="af-s2">
+          <div class="af-ln"><div class="af-dot"></div><div class="af-wire"></div></div>
+          <div class="af-s2-c">
+            <h4><span class="af-method post">POST</span> /auth/login</h4>
+            <p>Send email + password. Response contains <code>access_token</code> (1 hour) and <code>refresh_token</code> (7 days).</p>
+          </div>
+        </div>
+        <div class="af-s2">
+          <div class="af-ln"><div class="af-dot"></div><div class="af-wire"></div></div>
+          <div class="af-s2-c">
+            <h4>Request with Bearer Token</h4>
+            <p>Include the header <code>Authorization: Bearer &lt;access_token&gt;</code> in every authenticated request.</p>
+          </div>
+        </div>
+        <div class="af-s2">
+          <div class="af-ln"><div class="af-dot"></div><div class="af-wire"></div></div>
+          <div class="af-s2-c">
+            <h4><span class="af-method post">POST</span> /auth/refresh-token</h4>
+            <p>Send the <code>refresh_token</code> to get a new token pair. The old token is automatically invalidated (single-use rotation).</p>
+          </div>
+        </div>
+        <div class="af-s2">
+          <div class="af-ln"><div class="af-dot"></div></div>
+          <div class="af-s2-c">
+            <h4><span class="af-method post">POST</span> /auth/logout</h4>
+            <p>Invalidates the refresh token. The user must log in again to obtain new tokens.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec sa" id="response">
+    <div class="sec-h">
+      <div class="sec-tg">📦 Response Format</div>
+      <h2 class="sec-tt">Standard Response</h2>
+      <p class="sec-d">All endpoints return responses in a consistent JSON envelope format.</p>
+    </div>
+    <div class="cb" style="margin-top:0">
+      <div class="cb-h">
+        <div class="cb-t"><span style="font-size:12px;font-weight:600;color:var(--mt)">Response Format</span></div>
+      </div>
+      <div class="cb-b">{
+  <span class="k">"success"</span>: <span class="n">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Data retrieved successfully"</span>,
+  <span class="k">"data"</span>: { ... },
+  <span class="k">"errors"</span>: [],
+  <span class="k">"pagination"</span>: {
+    <span class="k">"total"</span>: <span class="n">150</span>,
+    <span class="k">"per_page"</span>: <span class="n">10</span>,
+    <span class="k">"current_page"</span>: <span class="n">1</span>,
+    <span class="k">"last_page"</span>: <span class="n">15</span>
+  },
+  <span class="k">"request_id"</span>: <span class="s">"550e8400-e29b-41d4-a716-446655440000"</span>
+}</div>
+    </div>
+  </section>
+
+  <section class="sec sa" id="ratelimits">
+    <div class="sec-h">
+      <div class="sec-tg">⏱️ Rate Limits</div>
+      <h2 class="sec-tt">Rate Limiting</h2>
+      <p class="sec-d">Request limits per minute to prevent abuse and ensure fair usage.</p>
+    </div>
+    <div class="rl-wrap">
+      <table class="rl-tbl">
+        <thead>
+          <tr><th>Scope</th><th>Limit</th><th>Window</th><th>Applied To</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="rl-badge b1">Global</span></td>
+            <td>100 requests</td><td>60 seconds</td>
+            <td>All endpoints</td>
+          </tr>
+          <tr>
+            <td><span class="rl-badge b2">Auth</span></td>
+            <td>10 requests</td><td>60 seconds</td>
+            <td><code>POST /auth/register</code>, <code>POST /auth/login</code></td>
+          </tr>
+          <tr>
+            <td><span class="rl-badge b3">Strict</span></td>
+            <td>5 requests</td><td>60 seconds</td>
+            <td><code>POST /auth/forgot-password</code>, <code>POST /auth/reset-password</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="ft">
+    <p class="ft-p">Built with ❤️ by <a href="#">KPM Academy</a> — v1.0.0</p>
+    <div class="ft-links">
+      <a href="/docs/swagger">Swagger</a>
+      <a href="/docs/redoc">Redoc</a>
+      <a href="/docs/openapi.json">OpenAPI JSON</a>
+      <a href="/docs/swagger.yaml">OpenAPI YAML</a>
+    </div>
+  </footer>
+  <script>
+    (function(){
+      var tb=document.getElementById('topbar');
+      window.addEventListener('scroll',function(){
+        if(window.scrollY>30){tb.classList.add('scrolled')}else{tb.classList.remove('scrolled')}
+      });
+
+      var obs=new IntersectionObserver(function(entries){
+        entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('v');obs.unobserve(e.target)}});
+      },{threshold:0.1,rootMargin:'0px 0px -40px 0px'});
+      document.querySelectorAll('.sa').forEach(function(el){obs.observe(el)});
+
+      window.toggleDrawer=function(){
+        document.getElementById('drawer').classList.toggle('op');
+        document.getElementById('overlay').classList.toggle('op');
+      };
+
+      window.copyUrl=function(){
+        var url=document.getElementById('baseUrl').textContent;
+        navigator.clipboard.writeText(url).then(function(){
+          var b=document.querySelector('.cpbtn');
+          b.classList.add('cp');
+          b.innerHTML='<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+          setTimeout(function(){b.classList.remove('cp');b.innerHTML='<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>'},2000);
+        });
+      };
+
+      window.showTab=function(btn,lang){
+        var tabs=btn.parentElement.querySelectorAll('.cb-tb');
+        tabs.forEach(function(t){t.classList.remove('ac')});
+        btn.classList.add('ac');
+        ['curl','js','py'].forEach(function(l){
+          var el=document.getElementById('code-'+l);
+          if(el) el.style.display=l===lang?'block':'none';
+        });
+      };
+
+      window.copyCode=function(btn){
+        var active=btn.parentElement.parentElement.querySelector('.cb-b[style*="block"]')||btn.parentElement.parentElement.querySelector('.cb-b');
+        var text=active.textContent||active.innerText;
+        navigator.clipboard.writeText(text).then(function(){
+          var orig=btn.textContent;btn.textContent='Copied!';btn.style.color='var(--ok)';
+          setTimeout(function(){btn.textContent=orig;btn.style.color=''},2000);
+        });
+      };
+
+      window.filterEndpoints=function(){
+        var q=document.getElementById('epSearch').value.toLowerCase().trim();
+        var cards=document.querySelectorAll('.epc[data-name]');
+        var noResult=document.getElementById('epNoResult');
+        var visible=0;
+        cards.forEach(function(c){
+          var name=c.getAttribute('data-name').toLowerCase();
+          var paths=c.getAttribute('data-paths').toLowerCase();
+          if(name.indexOf(q)!==-1||paths.indexOf(q)!==-1){c.classList.remove('hidden');visible++}else{c.classList.add('hidden')}
+        });
+        if(visible===0&&q.length>0){noResult.style.display='block'}else{noResult.style.display='none'}
+      };
+    })();
+  </script>
+</body>
+</html>

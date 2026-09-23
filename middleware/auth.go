@@ -17,7 +17,7 @@ func AuthProtected(cfg *config.Config) fiber.Handler {
 		}
 
 		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 			return utils.UnauthorizedResponse(c, "Invalid authorization header format")
 		}
 
@@ -52,7 +52,7 @@ func OptionalAuth(cfg *config.Config) fiber.Handler {
 		}
 
 		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 			return c.Next()
 		}
 

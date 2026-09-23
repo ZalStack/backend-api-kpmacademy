@@ -8,24 +8,24 @@ import (
 )
 
 type Video struct {
-	ID               uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
-	Title            string         `gorm:"type:varchar(255);not null" json:"title"`
-	Description      string         `gorm:"type:text" json:"description"`
-	PackageID        *uuid.UUID     `gorm:"type:char(36)" json:"package_id"`
-	Package          *Package       `gorm:"foreignKey:PackageID" json:"package,omitempty"`
-	VideoFile        string         `gorm:"type:varchar(255)" json:"video_file"`
-	VideoURL         string         `gorm:"type:varchar(500)" json:"video_url"`
-	Thumbnail        string         `gorm:"type:varchar(255)" json:"thumbnail"`
-	Price            float64        `gorm:"type:decimal(10,2);default:0" json:"price"`
-	DiscountType     string         `gorm:"type:varchar(20)" json:"discount_type"`
-	DiscountValue    *float64       `gorm:"type:decimal(10,2)" json:"discount_value"`
-	AccessDurationDays int          `gorm:"default:30" json:"access_duration_days"`
-	IsActive         bool           `gorm:"default:true" json:"is_active"`
-	IsPayWhatYouWant bool           `gorm:"default:false" json:"is_pay_what_you_want"`
-	MinPayAmount     float64        `gorm:"type:decimal(10,2);default:0" json:"min_pay_amount"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                 uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
+	Title              string         `gorm:"type:varchar(255);not null" json:"title"`
+	Description        string         `gorm:"type:text" json:"description"`
+	PackageID          *uuid.UUID     `gorm:"type:char(36)" json:"package_id"`
+	Package            *Package       `gorm:"foreignKey:PackageID" json:"package,omitempty"`
+	VideoFile          string         `gorm:"type:varchar(255)" json:"video_file"`
+	VideoURL           string         `gorm:"type:varchar(500)" json:"video_url"`
+	Thumbnail          string         `gorm:"type:varchar(255)" json:"thumbnail"`
+	Price              float64        `gorm:"type:decimal(10,2);default:0" json:"price"`
+	DiscountType       string         `gorm:"type:varchar(20)" json:"discount_type"`
+	DiscountValue      *float64       `gorm:"type:decimal(10,2)" json:"discount_value"`
+	AccessDurationDays int            `gorm:"default:30" json:"access_duration_days"`
+	IsActive           bool           `gorm:"default:true" json:"is_active"`
+	IsPayWhatYouWant   bool           `gorm:"default:false" json:"is_pay_what_you_want"`
+	MinPayAmount       float64        `gorm:"type:decimal(10,2);default:0" json:"min_pay_amount"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (v *Video) BeforeCreate(tx *gorm.DB) error {
@@ -44,7 +44,7 @@ type VideoOrder struct {
 	OrderNumber      string         `gorm:"type:varchar(50);uniqueIndex;not null" json:"order_number"`
 	TotalPrice       float64        `gorm:"type:decimal(10,2);default:0" json:"total_price"`
 	PaymentStatus    string         `gorm:"type:varchar(50);default:pending;not null" json:"payment_status"`
-	TransactionID    string         `gorm:"type:varchar(255);uniqueIndex" json:"transaction_id"`
+	TransactionID    *string        `gorm:"type:varchar(255);uniqueIndex" json:"transaction_id"`
 	PaymentReference string         `gorm:"type:varchar(255)" json:"payment_reference"`
 	PaymentURL       string         `gorm:"type:text" json:"payment_url"`
 	PaymentType      string         `gorm:"type:varchar(50)" json:"payment_type"`

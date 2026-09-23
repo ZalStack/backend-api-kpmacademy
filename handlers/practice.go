@@ -93,6 +93,19 @@ func SubmitPractice() fiber.Handler {
 		session.FinishedAt = &now
 		session.Status = "finished"
 
+		if req.CorrectAnswer > 0 || req.WrongAnswer > 0 {
+			session.CorrectAnswer = req.CorrectAnswer
+			session.WrongAnswer = req.WrongAnswer
+			session.TotalScore = req.TotalScore
+			total := req.CorrectAnswer + req.WrongAnswer
+			if session.TotalQuestion > 0 {
+				session.Unanswered = session.TotalQuestion - total
+				if session.Unanswered < 0 {
+					session.Unanswered = 0
+				}
+			}
+		}
+
 		if result := db.Save(&session); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to submit practice")
 		}

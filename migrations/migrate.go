@@ -1,12 +1,17 @@
 package migrations
 
 import (
+	"errors"
 	"log"
 	"os"
+	"strings"
 
 	"backend-api-kpmacademy/database"
 	"backend-api-kpmacademy/models"
 	"backend-api-kpmacademy/utils"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func RunMigrations() {
@@ -34,23 +39,47 @@ func RunMigrations() {
 	log.Println("Migrations completed successfully")
 }
 
-func SeedAdmin(cfg interface{}) {
+func SeedAdmin() {
 	db := database.GetDB()
-
-	var count int64
-	db.Model(&models.User{}).Where("role = ?", "admin").Count(&count)
-	if count > 0 {
-		log.Println("Admin already exists, skipping seed")
-		return
-	}
 
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
-		adminEmail = "admin@kpmacademy.com"
+		log.Fatal("FATAL: ADMIN_EMAIL environment variable is required for admin seed")
 	}
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminPassword == "" {
-		adminPassword = "Admin123!"
+		log.Fatal("FATAL: ADMIN_PASSWORD environment variable is required for admin seed")
+	}
+
+	// Idempotent check by email (including soft-deleted rows)
+	// Menggunakan Unscoped agar tidak terkecoh soft-delete: unique index MySQL tetap blokir email yang soft-deleted
+	var existing models.User
+	err := db.Unscoped().Where("email = ?", adminEmail).First(&existing).Error
+	if err == nil {
+		updates := map[string]interface{}{
+			"role":        "admin",
+			"is_verified": true,
+			"is_active":   true,
+		}
+		if existing.DeletedAt.Valid {
+			updates["deleted_at"] = nil
+		}
+		if !utils.CheckPasswordHash(adminPassword, existing.Password) {
+			newHash, hashErr := utils.HashPassword(adminPassword)
+			if hashErr == nil {
+				updates["password"] = newHash
+			}
+		}
+		if err := db.Unscoped().Model(&existing).Updates(updates).Error; err != nil {
+			log.Printf("Failed to update existing admin: %v", err)
+			return
+		}
+		log.Println("Admin verified and updated successfully")
+		return
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("Failed to check existing admin: %v", err)
+		return
 	}
 
 	hashedPassword, err := utils.HashPassword(adminPassword)
@@ -67,8 +96,19 @@ func SeedAdmin(cfg interface{}) {
 		IsActive:   true,
 	}
 
-	if result := db.Create(&admin); result.Error != nil {
+	// OnConflict DoNothing untuk handle race condition / duplicate key (Error 1062)
+	result := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&admin)
+	if result.Error != nil {
+		// Fallback: jika driver tidak support DoNothing, cek duplicate secara string
+		if strings.Contains(result.Error.Error(), "Duplicate") || strings.Contains(result.Error.Error(), "duplicate") {
+			log.Println("Admin already exists, skipping seed")
+			return
+		}
 		log.Printf("Failed to seed admin: %v", result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		log.Println("Admin already exists, skipping seed")
 		return
 	}
 

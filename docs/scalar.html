@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPM Academy — Scalar API Reference</title>
+  <meta name="description" content="Interactive, beautifully structured API Reference for KPM Academy UTBK/SNBT Learning Platform.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --kpm-topbar-h: 60px;
+      --kpm-bg: #06080f;
+      --kpm-surface: #0c1021;
+      --kpm-border: #1a2140;
+      --kpm-text: #f0f4ff;
+      --kpm-muted: #7a88b0;
+      --kpm-primary: #3b82f6;
+      --kpm-primary-light: #60a5fa;
+      --kpm-primary-glow: rgba(59, 130, 246, 0.3);
+      --scalar-color-1: #f0f4ff;
+      --scalar-color-2: #94a3b8;
+      --scalar-color-3: #64748b;
+      --scalar-background-1: #06080f;
+      --scalar-background-2: #0c1021;
+      --scalar-background-3: #111631;
+      --scalar-brand: #3b82f6;
+      --scalar-border-color: #1a2140;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      margin: 0;
+      padding-top: var(--kpm-topbar-h);
+      background: var(--kpm-bg);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--kpm-text);
+      overflow-x: hidden;
+    }
+
+    /* ── Topbar Navigation ──────────────────────────────────── */
+    .kpm-topbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--kpm-topbar-h);
+      background: rgba(6, 8, 15, 0.88);
+      backdrop-filter: blur(20px) saturate(1.6);
+      -webkit-backdrop-filter: blur(20px) saturate(1.6);
+      border-bottom: 1px solid rgba(26, 33, 64, 0.8);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; z-index: 999999;
+    }
+    .kpm-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #fff; }
+    .kpm-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed, #ec4899);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+    }
+    .kpm-title-wrap { display: flex; flex-direction: column; line-height: 1.2; }
+    .kpm-title { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; }
+    .kpm-subtitle { font-size: 11px; color: var(--kpm-muted); font-weight: 500; }
+
+    .kpm-nav { display: flex; align-items: center; gap: 6px; }
+    .kpm-nav a {
+      display: flex; align-items: center; gap: 6px;
+      text-decoration: none; font-size: 13px; font-weight: 500;
+      color: var(--kpm-muted); padding: 7px 13px; border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .kpm-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .kpm-nav a.active {
+      color: #fff; background: var(--kpm-primary); font-weight: 600;
+      box-shadow: 0 2px 12px var(--kpm-primary-glow);
+    }
+    .kpm-sep { width: 1px; height: 18px; background: var(--kpm-border); margin: 0 6px; }
+    .kpm-spec-links { display: flex; align-items: center; gap: 6px; }
+    .kpm-spec-links a {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600;
+      color: #94a3c8; background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1); padding: 5px 10px; border-radius: 6px;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .kpm-spec-links a:hover {
+      background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #fff;
+    }
+
+    @media (max-width: 768px) {
+      .kpm-nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="kpm-topbar">
+    <a href="/docs" class="kpm-brand">
+      <div class="kpm-logo">🎓</div>
+      <div class="kpm-title-wrap">
+        <span class="kpm-title">KPM Academy</span>
+        <span class="kpm-subtitle">API Documentation</span>
+      </div>
+    </a>
+    <nav class="kpm-nav">
+      <a href="/docs">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+        Overview
+      </a>
+      <a href="/docs/scalar" class="active">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Reference (Scalar)
+      </a>
+      <a href="/docs/swagger">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Swagger UI
+      </a>
+      <a href="/docs/redoc">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Redoc
+      </a>
+      <div class="kpm-sep"></div>
+      <div class="kpm-spec-links">
+        <a href="/docs/swagger.yaml" target="_blank">YAML</a>
+        <a href="/docs/openapi.json" target="_blank">JSON</a>
+      </div>
+    </nav>
+  </header>
+
+  <script id="api-reference" data-url="/docs/openapi.json" data-configuration='{
+    "theme": "purple",
+    "layout": "modern",
+    "showSidebar": true,
+    "darkMode": true,
+    "hideDownloadButton": false,
+    "searchHotKey": "k",
+    "metaData": {
+      "title": "KPM Academy API Reference"
+    }
+  }'></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,16 +22,34 @@ func SecurityHeaders() fiber.Handler {
 	}
 }
 
+func getAllowedOrigins() []string {
+	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if originsEnv == "" {
+		return []string{"http://localhost:3000", "http://localhost:5173"}
+	}
+	return strings.Split(originsEnv, ",")
+}
+
 func CORS() fiber.Handler {
+	allowedOrigins := getAllowedOrigins()
+
 	return func(c *fiber.Ctx) error {
 		origin := c.Get("Origin")
-		if origin == "" {
-			origin = "*"
+
+		allowed := false
+		for _, o := range allowedOrigins {
+			if strings.TrimSpace(o) == origin {
+				allowed = true
+				break
+			}
 		}
 
-		c.Set("Access-Control-Allow-Origin", origin)
+		if allowed {
+			c.Set("Access-Control-Allow-Origin", origin)
+		}
+
 		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Content-Type,Accept,X-Requested-With")
+		c.Set("Access-Control-Allow-Headers", "Content-Type,Accept,Authorization,X-Requested-With")
 		c.Set("Access-Control-Allow-Credentials", "true")
 		c.Set("Access-Control-Max-Age", "86400")
 		c.Set("Access-Control-Expose-Headers", "Content-Length")
@@ -43,6 +63,19 @@ func CORS() fiber.Handler {
 
 func RequestTimeout(timeout time.Duration) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		return c.Next()
+		done := make(chan error, 1)
+		go func() {
+			done <- c.Next()
+		}()
+
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(timeout):
+			return c.Status(fiber.StatusGatewayTimeout).JSON(fiber.Map{
+				"success": false,
+				"message": "Request timeout",
+			})
+		}
 	}
 }
