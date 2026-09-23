@@ -165,7 +165,7 @@ bash test_all_endpoints.sh
 | `UPLOAD_DIR` | ✗ | `./uploads` | Direktori upload file |
 | `MAX_UPLOAD_SIZE` | ✗ | `10485760` | Maks ukuran upload (bytes) |
 | `RATE_LIMIT` | ✗ | `100` | Maks request per IP / menit |
-| `CORS_ALLOWED_ORIGINS` | ✗ | `localhost:3000,localhost:5173` | Origin yang diizinkan CORS |
+| `CORS_ALLOWED_ORIGINS` | ✗ | `https://backend-api.kpmacademic.io,localhost:3000,localhost:5173` | Origin yang diizinkan CORS |
 | `ADMIN_EMAIL` | ✓ | — | Email admin yang di-seed |
 | `ADMIN_PASSWORD` | ✓ | — | Password admin yang di-seed |
 
@@ -289,8 +289,9 @@ Respons saat limit terlampaui:
 
 ## 📡 Daftar Endpoint
 
-> **Base URL:** `http://localhost:3000/api/v1`  
-> **Alias:** `http://localhost:3000/api` (backward compatibility)
+> **Base URL:** `https://backend-api.kpmacademic.io/api/v1`  
+> **Alias:** `https://backend-api.kpmacademic.io/api` (backward compatibility)  
+> **Local Dev:** `http://localhost:3000/api/v1`
 
 ---
 
@@ -832,12 +833,12 @@ Saat server berjalan, akses dokumentasi di:
 
 | URL | Keterangan |
 |---|---|
-| [`/docs`](http://localhost:3000/docs) | Landing page dokumentasi |
-| [`/docs/scalar`](http://localhost:3000/docs/scalar) | **Scalar UI** — Modern, recommended |
-| [`/docs/swagger`](http://localhost:3000/docs/swagger) | **Swagger UI** — Classic |
-| [`/docs/redoc`](http://localhost:3000/docs/redoc) | **Redoc** — Readable |
-| [`/docs/openapi.json`](http://localhost:3000/docs/openapi.json) | Spec OpenAPI (JSON) |
-| [`/docs/swagger.yaml`](http://localhost:3000/docs/swagger.yaml) | Spec OpenAPI (YAML) |
+| [`/docs`](https://backend-api.kpmacademic.io/docs) | Landing page dokumentasi |
+| [`/docs/scalar`](https://backend-api.kpmacademic.io/docs/scalar) | **Scalar UI** — Modern, recommended |
+| [`/docs/swagger`](https://backend-api.kpmacademic.io/docs/swagger) | **Swagger UI** — Classic |
+| [`/docs/redoc`](https://backend-api.kpmacademic.io/docs/redoc) | **Redoc** — Readable |
+| [`/docs/openapi.json`](https://backend-api.kpmacademic.io/docs/openapi.json) | Spec OpenAPI (JSON) |
+| [`/docs/swagger.yaml`](https://backend-api.kpmacademic.io/docs/swagger.yaml) | Spec OpenAPI (YAML) |
 
 ---
 

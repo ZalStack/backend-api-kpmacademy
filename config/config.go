@@ -22,6 +22,7 @@ type AppConfig struct {
 	Port  string
 	Env   string
 	Debug bool
+	URL   string
 }
 
 type DatabaseConfig struct {
@@ -73,6 +74,7 @@ func Load() *Config {
 			Port:  getEnv("APP_PORT", "3000"),
 			Env:   getEnv("APP_ENV", "development"),
 			Debug: getEnvBool("APP_DEBUG", false),
+			URL:   getEnv("APP_URL", "https://backend-api.kpmacademic.io"),
 		},
 		DB: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "127.0.0.1"),

@@ -25,7 +25,13 @@ func SecurityHeaders() fiber.Handler {
 func getAllowedOrigins() []string {
 	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if originsEnv == "" {
-		return []string{"http://localhost:3000", "http://localhost:5173"}
+		return []string{
+			"https://backend-api.kpmacademic.io",
+			"https://kpmacademic.io",
+			"https://www.kpmacademic.io",
+			"http://localhost:3000",
+			"http://localhost:5173",
+		}
 	}
 	return strings.Split(originsEnv, ",")
 }

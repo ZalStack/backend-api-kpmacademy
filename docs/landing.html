@@ -239,7 +239,7 @@
       <div class="burl">
         <div class="burl-i">
           <span class="burl-lb">Base URL</span>
-          <span class="burl-v" id="baseUrl">http://localhost:3000/api/v1</span>
+          <span class="burl-v" id="baseUrl">https://backend-api.kpmacademic.io/api/v1</span>
           <button class="cpbtn" onclick="copyUrl()" title="Copy"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
         </div>
       </div>
@@ -285,7 +285,7 @@
         <button class="cb-cp" onclick="copyCode(this)">Copy</button>
       </div>
       <div class="cb-b" id="code-curl"><span class="c"># Register new user</span>
-<span class="f">curl</span> -X POST http://localhost:3000/api/v1/auth/register \
+<span class="f">curl</span> -X POST https://backend-api.kpmacademic.io/api/v1/auth/register \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{
     "name": "Ahmad Fauzi",
@@ -295,16 +295,16 @@
   }'</span>
 
 <span class="c"># Login</span>
-<span class="f">curl</span> -X POST http://localhost:3000/api/v1/auth/login \
+<span class="f">curl</span> -X POST https://backend-api.kpmacademic.io/api/v1/auth/login \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"email": "ahmad@kpm.ac.id", "password": "Secure@123"}'</span>
 
 <span class="c"># Use token for authenticated requests</span>
-<span class="f">curl</span> http://localhost:3000/api/v1/profile \
+<span class="f">curl</span> https://backend-api.kpmacademic.io/api/v1/profile \
   -H <span class="s">"Authorization: Bearer YOUR_ACCESS_TOKEN"</span></div>
       <div class="cb-b" id="code-js" style="display:none"><span class="c">// Register & Login</span>
 <span class="kw">const</span> <span class="f">register</span> = <span class="kw">async</span> () =&gt; {
-  <span class="kw">const</span> res = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'http://localhost:3000/api/v1/auth/register'</span>, {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'https://backend-api.kpmacademic.io/api/v1/auth/register'</span>, {
     <span class="k">method</span>: <span class="s">'POST'</span>,
     <span class="k">headers</span>: { <span class="s">'Content-Type'</span>: <span class="s">'application/json'</span> },
     <span class="k">body</span>: JSON.<span class="f">stringify</span>({
@@ -317,14 +317,14 @@
   <span class="kw">const</span> token = data.<span class="k">tokens</span>.<span class="k">access_token</span>;
 
   <span class="c">// Use token</span>
-  <span class="kw">const</span> profile = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'http://localhost:3000/api/v1/profile'</span>, {
+  <span class="kw">const</span> profile = <span class="kw">await</span> <span class="f">fetch</span>(<span class="s">'https://backend-api.kpmacademic.io/api/v1/profile'</span>, {
     <span class="k">headers</span>: { <span class="s">'Authorization'</span>: <span class="s">`Bearer ${token}`</span> }
   });
 };</div>
       <div class="cb-b" id="code-py" style="display:none"><span class="kw">import</span> requests
 
 <span class="c"># Register</span>
-res = requests.<span class="f">post</span>(<span class="s">"http://localhost:3000/api/v1/auth/register"</span>, <span class="k">json</span>={
+res = requests.<span class="f">post</span>(<span class="s">"https://backend-api.kpmacademic.io/api/v1/auth/register"</span>, <span class="k">json</span>={
     <span class="s">"name"</span>: <span class="s">"Ahmad Fauzi"</span>,
     <span class="s">"email"</span>: <span class="s">"ahmad@kpm.ac.id"</span>,
     <span class="s">"password"</span>: <span class="s">"Secure@123"</span>
@@ -333,7 +333,7 @@ token = res.<span class="f">json</span>()[<span class="s">"data"</span>][<span c
 
 <span class="c"># Authenticated request</span>
 profile = requests.<span class="f">get</span>(
-    <span class="s">"http://localhost:3000/api/v1/profile"</span>,
+    <span class="s">"https://backend-api.kpmacademic.io/api/v1/profile"</span>,
     <span class="k">headers</span>={<span class="s">"Authorization"</span>: <span class="kw">f</span><span class="s">"Bearer {token}"</span>}
 )</div>
     </div>
