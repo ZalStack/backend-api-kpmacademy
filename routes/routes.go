@@ -124,6 +124,7 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	authGroup := api.Group("/auth")
 	authGroup.Post("/register", middleware.AuthRateLimit(), handlers.Register(cfg))
 	authGroup.Post("/login", middleware.AuthRateLimit(), handlers.Login(cfg))
+	authGroup.Post("/google", middleware.AuthRateLimit(), handlers.GoogleLogin(cfg))
 	authGroup.Post("/refresh-token", handlers.RefreshToken(cfg))
 	authGroup.Post("/forgot-password", middleware.StrictRateLimit(), handlers.ForgotPassword(cfg))
 	authGroup.Post("/reset-password", middleware.StrictRateLimit(), handlers.ResetPassword(cfg))

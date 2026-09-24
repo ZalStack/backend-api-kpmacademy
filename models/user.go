@@ -85,3 +85,11 @@ type ResetPasswordRequest struct {
 type ToggleActiveRequest struct {
 	IsActive bool `json:"is_active"`
 }
+
+type GoogleLoginRequest struct {
+	Email        string `json:"email" validate:"required,email"`
+	Name         string `json:"name"`
+	GoogleID     string `json:"google_id"`
+	ProfilePhoto string `json:"profile_photo"`
+}
+

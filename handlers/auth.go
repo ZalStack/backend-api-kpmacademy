@@ -144,6 +144,94 @@ func Login(cfg *config.Config) fiber.Handler {
 	}
 }
 
+func GoogleLogin(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var req models.GoogleLoginRequest
+		if err := c.BodyParser(&req); err != nil {
+			return utils.BadRequestResponse(c, "Invalid request body", err.Error())
+		}
+		if errs := utils.ValidateStruct(req); len(errs) > 0 {
+			return utils.BadRequestResponse(c, "Validation failed", errs)
+		}
+
+		db := database.GetDB()
+		var user models.User
+		result := db.Where("email = ?", req.Email).First(&user)
+
+		tx := db.Begin()
+		if tx.Error != nil {
+			return utils.InternalErrorResponse(c, "Failed to start transaction")
+		}
+
+		now := time.Now()
+		if result.Error != nil {
+			// User does not exist, create new Google user
+			randomPass := uuid.New().String() + "Aa1!"
+			hashed, _ := utils.HashPassword(randomPass)
+			userName := req.Name
+			if userName == "" {
+				userName = "Siswa KPM"
+			}
+			user = models.User{
+				Name:         userName,
+				Email:        req.Email,
+				Password:     hashed,
+				ProfilePhoto: req.ProfilePhoto,
+				Role:         "user",
+				IsVerified:   true,
+				IsActive:     true,
+				LastLoginAt:  &now,
+			}
+			if err := tx.Create(&user).Error; err != nil {
+				tx.Rollback()
+				return utils.InternalErrorResponse(c, "Failed to create user via Google")
+			}
+		} else {
+			if !user.IsActive {
+				tx.Rollback()
+				return utils.UnauthorizedResponse(c, "Account is deactivated")
+			}
+			user.LastLoginAt = &now
+			if req.Name != "" && user.Name == "" {
+				user.Name = req.Name
+			}
+			if req.ProfilePhoto != "" && user.ProfilePhoto == "" {
+				user.ProfilePhoto = req.ProfilePhoto
+			}
+		}
+
+		tokens, err := utils.GenerateTokenPair(user.ID, user.Email, user.Role, &cfg.JWT)
+		if err != nil {
+			tx.Rollback()
+			return utils.InternalErrorResponse(c, "Failed to generate tokens")
+		}
+		user.RefreshToken = tokens.RefreshToken
+		if err := tx.Save(&user).Error; err != nil {
+			tx.Rollback()
+			return utils.InternalErrorResponse(c, "Failed to save user")
+		}
+
+		loginLog := models.LoginLog{
+			UserID:    user.ID,
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+			LoginAt:   now,
+		}
+		if err := tx.Create(&loginLog).Error; err != nil {
+			tx.Rollback()
+			return utils.InternalErrorResponse(c, "Failed to log login")
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.InternalErrorResponse(c, "Failed to complete login")
+		}
+
+		return utils.SuccessResponse(c, fiber.StatusOK, "Google login successful", fiber.Map{
+			"user": user, "tokens": tokens,
+		})
+	}
+}
+
 func RefreshToken(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req models.RefreshTokenRequest
