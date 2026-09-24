@@ -35,3 +35,7 @@ uploads/
 # Build
 dist/
 build/
+
+# Logs
+*.log
+tmp/
