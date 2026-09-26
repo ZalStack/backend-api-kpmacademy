@@ -31,6 +31,10 @@ func RunMigrations() {
 		&models.ContactForm{},
 		&models.ChatMessage{},
 		&models.PasswordResetToken{},
+		&models.Banner{},
+		&models.LiveClass{},
+		&models.Module{},
+		&models.Voucher{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)

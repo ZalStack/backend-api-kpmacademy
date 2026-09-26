@@ -114,6 +114,9 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	api.Get("/packages/:id", handlers.GetPackageByID())
 	api.Get("/videos", handlers.GetAllVideos())
 	api.Get("/videos/:id", handlers.GetVideoByID())
+	api.Get("/banners", handlers.GetAllBanners())
+	api.Get("/live-classes", handlers.GetAllLiveClasses())
+	api.Get("/modules", handlers.GetAllModules())
 	api.Post("/kontak-form", middleware.AuthRateLimit(), handlers.CreateContactForm())
 	api.Post("/support/submit", middleware.AuthRateLimit(), handlers.SubmitSupport())
 	api.Post("/chat/send", middleware.AuthRateLimit(), handlers.SendChatMessage())
@@ -146,9 +149,14 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 
 	api.Post("/orders", auth, handlers.CreateOrder())
 	api.Get("/orders", auth, handlers.GetUserOrders())
+	api.Get("/orders/my", auth, handlers.GetUserOrders())
 	api.Get("/orders/status", auth, handlers.PaymentStatus())
 	api.Get("/orders/:id", auth, handlers.GetOrderByID())
+	api.Get("/orders/:id/check-midtrans", auth, handlers.CheckMidtransOrder())
 	api.Post("/orders/:id/pay", auth, handlers.SimulatePayment())
+
+	api.Post("/vouchers/claim", auth, handlers.ClaimVoucher())
+	api.Post("/vouchers/validate", handlers.ClaimVoucher())
 
 	api.Post("/practice/start", auth, handlers.StartPractice())
 	api.Post("/practice/submit", auth, handlers.SubmitPractice())

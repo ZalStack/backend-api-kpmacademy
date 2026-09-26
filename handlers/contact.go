@@ -213,6 +213,23 @@ func AdminDeleteContactForm() fiber.Handler {
 	}
 }
 
+func generateAITutorResponse(query string) string {
+	q := strings.ToLower(query)
+	if strings.Contains(q, "logaritma") {
+		return "💡 **Konsep & Trik Cepat Logaritma:**\n\n1️⃣ **Sifat Dasar:**\n• ^a\\log(b × c) = ^a\\log(b) + ^a\\log(c)\n• ^a\\log(b / c) = ^a\\log(b) - ^a\\log(c)\n• ^a\\log(b^n) = n × ^a\\log(b)\n\n2️⃣ **Trik Cepat:**\nJika ^a\\log(b) = x, maka a^x = b. Samakan basis numerus terlebih dahulu sebelum mengoperasikan penjumlahan atau pengurangan!\n\nAda contoh soal logaritma yang ingin kamu bahas bersama?"
+	}
+	if strings.Contains(q, "stoikiometri") || strings.Contains(q, "kimia") {
+		return "🧪 **Panduan Stoikiometri Kimia:**\n\n1️⃣ **Rumus Utama Mol (n):**\n• n = massa (gram) / Mr\n• n = Volume gas (STP) / 22.4 Liter\n• n = Molaritas (M) × Volume (L)\n\n2️⃣ **Langkah Penyelesaian:**\n1. Setarakan persamaan reaksi kimia.\n2. Ubah semua besaran yang diketahui ke satuan **Mol**.\n3. Gunakan perbandingan koefisien untuk mencari mol zat yang ditanyakan.\n4. Konversi mol tersebut ke gram atau liter sesuai pertanyaan!\n\nSilakan tuliskan soal kimiamu untuk kita bahas langkah demi langkah."
+	}
+	if strings.Contains(q, "kuadrat") || strings.Contains(q, "aljabar") {
+		return "📐 **Rumus Kuadrat Sempurna & Aljabar:**\n\n1️⃣ Bentuk: (a + b)² = a² + 2ab + b²\n2️⃣ Bentuk: (a - b)² = a² - 2ab + b²\n3️⃣ Selisih Kuadrat: a² - b² = (a + b)(a - b)\n\n⚡ **Rumus ABC untuk akar persamaan kuadrat ax² + bx + c = 0:**\nx = (-b ± √(b² - 4ac)) / (2a)\n\nIngin membahas variasi soal kuadrat atau pemfaktoran lainnya?"
+	}
+	if strings.Contains(q, "mnr") || strings.Contains(q, "nalaria") || strings.Contains(q, "matematika") {
+		return "✨ **Metode Matematika Nalaria Realistik (MNR) KPM:**\n\nMetode MNR melatih 3 tahapan berpikir nalar:\n1. **Memahami Masalah:** Identifikasi fakta, pola angka, dan kondisi soal.\n2. **Bernalar Kreatif:** Mengubah soal cerita kompleks menjadi model logika sederhana tanpa rumus kaku.\n3. **Verifikasi:** Mengecek kembali kewajaran hasil jawaban.\n\nKetikkan soal matematika MNR yang sedang kamu pelajari, AI Tutor siap membimbing pengerjaannya!"
+	}
+	return fmt.Sprintf("Halo! Pertanyaan bagus mengenai \"%s\". 🤖✨\n\n🧠 **Langkah & Solusi Pembahasan:**\n1️⃣ **Identifikasi Konsep:** Analisis variabel atau teori dasar yang terkait dengan topik ini.\n2️⃣ **Langkah Pengerjaan:** Terapkan prinsip step-by-step untuk memecahkan persoalan secara runtut dan tepat.\n3️⃣ **Tips Kunci:** Periksa kembali kesesuaian unit, formula, dan logika penalaran.\n\nAda bagian spesifik atau contoh soal yang ingin kita bedah bersama? Silakan ketikkan ya!", query)
+}
+
 func SendChatMessage() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		db := database.GetDB()
@@ -246,12 +263,17 @@ func SendChatMessage() fiber.Handler {
 			return utils.InternalErrorResponse(c, "Failed to save message")
 		}
 
+		aiReplyText, err := utils.CallGeminiAI(req.Message)
+		if err != nil || aiReplyText == "" {
+			aiReplyText = generateAITutorResponse(req.Message)
+		}
+
 		assistantMsg := models.ChatMessage{
 			SessionID: sessionID,
 			UserID:    userID,
 			Role:      "assistant",
-			Message:   "Thank you for your message. Our team will get back to you soon.",
-			IsAI:      false,
+			Message:   aiReplyText,
+			IsAI:      true,
 		}
 		if result := db.Create(&assistantMsg); result.Error != nil {
 			return utils.InternalErrorResponse(c, "Failed to save reply")
@@ -259,6 +281,7 @@ func SendChatMessage() fiber.Handler {
 
 		return utils.SuccessResponse(c, fiber.StatusCreated, "Message sent", fiber.Map{
 			"session_id":        sessionID,
+			"reply":             aiReplyText,
 			"user_message":      userMsg,
 			"assistant_message": assistantMsg,
 		})

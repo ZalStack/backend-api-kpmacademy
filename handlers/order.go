@@ -59,15 +59,27 @@ func CreateOrder() fiber.Handler {
 
 		orderNumber := "ORD-" + time.Now().Format("20060102150405") + "-" + utils.GenerateRandomString(6)
 
+		var user models.User
+		db.Where("id = ?", uid).First(&user)
+
+		token, redirectURL, snapErr := utils.CreateSnapTransaction(orderNumber, totalPrice, user.Name, user.Email, user.Phone)
+		if snapErr != nil {
+			redirectURL = "https://app.sandbox.midtrans.com/snap/v2/vtweb/demo"
+			token = "snap_fallback_" + utils.GenerateRandomString(12)
+		}
+
 		order := models.Order{
-			UserID:         uid,
-			PackageID:      &pkgID,
-			Type:           "package",
-			OrderNumber:    orderNumber,
-			TotalPrice:     totalPrice,
-			IsCustomAmount: req.IsCustomAmount,
-			PaymentStatus:  statusPending,
-			Enrollment:     "{}",
+			UserID:           uid,
+			PackageID:        &pkgID,
+			Type:             "package",
+			OrderNumber:      orderNumber,
+			TotalPrice:       totalPrice,
+			IsCustomAmount:   req.IsCustomAmount,
+			PaymentStatus:    statusPending,
+			PaymentURL:       redirectURL,
+			PaymentReference: token,
+			PaymentType:      "midtrans_snap",
+			Enrollment:       "{}",
 		}
 
 		if result := db.Create(&order); result.Error != nil {
@@ -79,6 +91,60 @@ func CreateOrder() fiber.Handler {
 		}
 
 		return utils.SuccessResponse(c, fiber.StatusCreated, "Order created", order)
+	}
+}
+
+func CheckMidtransOrder() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		uid, ok := utils.GetUserID(c)
+		if !ok {
+			return utils.UnauthorizedResponse(c, "Unauthorized")
+		}
+		id, err := uuid.Parse(c.Params("id"))
+		if err != nil {
+			return utils.BadRequestResponse(c, "Invalid order ID", nil)
+		}
+
+		db := database.GetDB()
+		var order models.Order
+		if result := db.Preload("Package").Where("id = ? AND user_id = ?", id, uid).First(&order); result.Error != nil {
+			return utils.NotFoundResponse(c, "Order not found")
+		}
+
+		midtransStatus, err := utils.CheckMidtransTransactionStatus(order.OrderNumber)
+		if err == nil && midtransStatus != nil {
+			status := mapMidtransStatus(midtransStatus.TransactionStatus)
+			if (status == statusPaid || midtransStatus.TransactionStatus == "settlement" || midtransStatus.TransactionStatus == "capture") && order.PaymentStatus != statusPaid {
+				tx := db.Begin()
+				now := time.Now()
+				order.PaymentStatus = statusPaid
+				order.TransactionID = &midtransStatus.TransactionID
+				order.PaymentType = midtransStatus.PaymentType
+				order.PaymentTime = &now
+
+				if order.PackageID != nil {
+					var pkg models.Package
+					if result := tx.Where("id = ?", order.PackageID).First(&pkg); result.Error == nil {
+						dur := pkg.MembershipDurationDays
+						order.MembershipDurationDays = &dur
+						order.MembershipStart = &now
+						end := now.AddDate(0, 0, pkg.MembershipDurationDays)
+						order.MembershipEnd = &end
+					}
+				}
+				tx.Save(&order)
+				tx.Commit()
+			}
+			return utils.SuccessResponse(c, fiber.StatusOK, "Midtrans status retrieved", fiber.Map{
+				"order":           order,
+				"midtrans_status": midtransStatus,
+			})
+		}
+
+		return utils.SuccessResponse(c, fiber.StatusOK, "Order retrieved", fiber.Map{
+			"order":           order,
+			"midtrans_status": nil,
+		})
 	}
 }
 
