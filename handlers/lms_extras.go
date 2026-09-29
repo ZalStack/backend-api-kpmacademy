@@ -561,7 +561,7 @@ func BookTutorSchedule() fiber.Handler {
 		}
 
 		if err := db.Create(&booking).Error; err != nil {
-			return utils.InternalServerError(c, "Gagal membuat reservasi tutor: "+err.Error())
+			return utils.InternalErrorResponse(c, "Gagal membuat reservasi tutor: "+err.Error())
 		}
 
 		return utils.SuccessResponse(c, http.StatusCreated, "Jadwal les privat 1-on-1 berhasil dipesan!", booking)
