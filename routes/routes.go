@@ -170,6 +170,11 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	api.Post("/testimonials", auth, handlers.CreateTestimonial())
 	api.Get("/testimonials/my", auth, handlers.GetUserTestimonial())
 
+	api.Get("/leaderboard", handlers.GetLeaderboard())
+	api.Get("/tutors", handlers.GetAllTutors())
+	api.Post("/tutors/:id/book-schedule", auth, handlers.BookTutorSchedule())
+	api.Get("/tutors/my-bookings", auth, handlers.GetMyTutorBookings())
+
 	adminRoutes := api.Group("/admin", auth, admin)
 
 	adminRoutes.Get("/dashboard", handlers.AdminDashboard())

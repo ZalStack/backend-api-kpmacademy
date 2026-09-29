@@ -35,6 +35,8 @@ func RunMigrations() {
 		&models.LiveClass{},
 		&models.Module{},
 		&models.Voucher{},
+		&models.Tutor{},
+		&models.TutorBooking{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
