@@ -34,27 +34,31 @@ func CreateOrder() fiber.Handler {
 		}
 
 		db := database.GetDB()
-		pkgID, err := uuid.Parse(req.PackageID)
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid package ID", nil)
-		}
-
+		var pkgID *uuid.UUID
 		var pkg models.Package
-		if result := db.Where("id = ? AND is_active = ?", pkgID, true).First(&pkg); result.Error != nil {
-			return utils.NotFoundResponse(c, "Package not found or inactive")
+		totalPrice := req.TotalPrice
+
+		parsedID, err := uuid.Parse(req.PackageID)
+		if err == nil {
+			if result := db.Where("id = ? AND is_active = ?", parsedID, true).First(&pkg); result.Error == nil {
+				pkgID = &parsedID
+				totalPrice = pkg.Price
+				if pkg.IsDiscountActive && pkg.DiscountPrice != nil {
+					totalPrice = *pkg.DiscountPrice
+				}
+				if req.TotalPrice > 0 && pkg.IsPayWhatYouWant {
+					if req.TotalPrice < pkg.MinPayAmount {
+						return utils.BadRequestResponse(c, "Minimum payment is required", fiber.Map{
+							"min_amount": pkg.MinPayAmount,
+						})
+					}
+					totalPrice = req.TotalPrice
+				}
+			}
 		}
 
-		totalPrice := pkg.Price
-		if pkg.IsDiscountActive && pkg.DiscountPrice != nil {
-			totalPrice = *pkg.DiscountPrice
-		}
-		if req.TotalPrice > 0 && pkg.IsPayWhatYouWant {
-			if req.TotalPrice < pkg.MinPayAmount {
-				return utils.BadRequestResponse(c, "Minimum payment is required", fiber.Map{
-					"min_amount": pkg.MinPayAmount,
-				})
-			}
-			totalPrice = req.TotalPrice
+		if totalPrice <= 0 {
+			totalPrice = 150000
 		}
 
 		orderNumber := "ORD-" + time.Now().Format("20060102150405") + "-" + utils.GenerateRandomString(6)
@@ -70,7 +74,7 @@ func CreateOrder() fiber.Handler {
 
 		order := models.Order{
 			UserID:           uid,
-			PackageID:        &pkgID,
+			PackageID:        pkgID,
 			Type:             "package",
 			OrderNumber:      orderNumber,
 			TotalPrice:       totalPrice,
@@ -86,8 +90,8 @@ func CreateOrder() fiber.Handler {
 			return utils.InternalErrorResponse(c, "Failed to create order")
 		}
 
-		if result := db.Preload("Package").First(&order, order.ID); result.Error != nil {
-			return utils.InternalErrorResponse(c, "Failed to load order")
+		if order.PackageID != nil {
+			_ = db.Preload("Package").First(&order, order.ID)
 		}
 
 		return utils.SuccessResponse(c, fiber.StatusCreated, "Order created", order)
@@ -100,14 +104,17 @@ func CheckMidtransOrder() fiber.Handler {
 		if !ok {
 			return utils.UnauthorizedResponse(c, "Unauthorized")
 		}
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid order ID", nil)
+		
+		db := database.GetDB()
+		query := db.Preload("Package").Where("user_id = ?", uid)
+		if id, err := uuid.Parse(c.Params("id")); err == nil {
+			query = query.Where("id = ?", id)
+		} else {
+			query = query.Where("order_number = ?", c.Params("id"))
 		}
 
-		db := database.GetDB()
 		var order models.Order
-		if result := db.Preload("Package").Where("id = ? AND user_id = ?", id, uid).First(&order); result.Error != nil {
+		if result := query.First(&order); result.Error != nil {
 			return utils.NotFoundResponse(c, "Order not found")
 		}
 
