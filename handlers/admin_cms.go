@@ -477,6 +477,49 @@ func CreateVoucher() fiber.Handler {
 	}
 }
 
+func UpdateVoucher() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		idParam := c.Params("id")
+		id, err := uuid.Parse(idParam)
+		if err != nil {
+			return utils.BadRequestResponse(c, "ID voucher tidak valid", nil)
+		}
+
+		db := database.GetDB()
+		var voucher models.Voucher
+		if err := db.Where("id = ?", id).First(&voucher).Error; err != nil {
+			return utils.NotFoundResponse(c, "Voucher tidak ditemukan")
+		}
+
+		var req CreateVoucherRequest
+		if err := c.BodyParser(&req); err != nil {
+			return utils.BadRequestResponse(c, "Payload tidak valid", err.Error())
+		}
+
+		if req.Code != "" {
+			voucher.Code = strings.ToUpper(strings.TrimSpace(req.Code))
+		}
+		if req.Title != "" {
+			voucher.Title = req.Title
+		}
+		if req.DiscountPercent > 0 {
+			voucher.DiscountPercent = req.DiscountPercent
+		}
+		if req.DiscountAmount > 0 {
+			voucher.DiscountAmount = req.DiscountAmount
+		}
+		if req.Quota > 0 {
+			voucher.UsageLimit = req.Quota
+		}
+
+		if err := db.Save(&voucher).Error; err != nil {
+			return utils.InternalErrorResponse(c, "Gagal memperbarui voucher: "+err.Error())
+		}
+
+		return utils.SuccessResponse(c, http.StatusOK, "Voucher berhasil diperbarui", voucher)
+	}
+}
+
 func DeleteVoucher() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		idParam := c.Params("id")

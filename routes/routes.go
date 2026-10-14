@@ -240,19 +240,32 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	adminRoutes.Get("/notifications", handlers.AdminIndexNotifications())
 
 	// CMS Admin Endpoints
+	adminRoutes.Get("/banners", handlers.GetAllBanners())
 	adminRoutes.Post("/banners", handlers.CreateBanner())
 	adminRoutes.Put("/banners/:id", handlers.UpdateBanner())
 	adminRoutes.Delete("/banners/:id", handlers.DeleteBanner())
 
+	adminRoutes.Get("/live-classes", handlers.GetAllLiveClasses())
 	adminRoutes.Post("/live-classes", handlers.CreateLiveClass())
 	adminRoutes.Put("/live-classes/:id", handlers.UpdateLiveClass())
 	adminRoutes.Delete("/live-classes/:id", handlers.DeleteLiveClass())
 
+	adminRoutes.Get("/modules", handlers.GetAllModules())
 	adminRoutes.Post("/modules", handlers.CreateModule())
 	adminRoutes.Put("/modules/:id", handlers.UpdateModule())
 	adminRoutes.Delete("/modules/:id", handlers.DeleteModule())
 
 	adminRoutes.Get("/vouchers", handlers.GetAllVouchersAdmin())
 	adminRoutes.Post("/vouchers", handlers.CreateVoucher())
+	adminRoutes.Put("/vouchers/:id", handlers.UpdateVoucher())
 	adminRoutes.Delete("/vouchers/:id", handlers.DeleteVoucher())
+
+	// Fallback direct api routes (in case client calls /api/v1/banners or /api/v1/vouchers directly)
+	api.Get("/vouchers", handlers.GetAllVouchersAdmin())
+	api.Post("/banners", auth, admin, handlers.CreateBanner())
+	api.Put("/banners/:id", auth, admin, handlers.UpdateBanner())
+	api.Delete("/banners/:id", auth, admin, handlers.DeleteBanner())
+	api.Post("/vouchers", auth, admin, handlers.CreateVoucher())
+	api.Put("/vouchers/:id", auth, admin, handlers.UpdateVoucher())
+	api.Delete("/vouchers/:id", auth, admin, handlers.DeleteVoucher())
 }
