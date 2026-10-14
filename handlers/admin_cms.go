@@ -318,6 +318,7 @@ func CreateModule() fiber.Handler {
 			isActive = *req.IsActive
 		}
 
+		coverImg := req.CoverURL
 		mod := models.Module{
 			ID:          uuid.New(),
 			Title:       req.Title,
@@ -326,17 +327,13 @@ func CreateModule() fiber.Handler {
 			Grade:       req.Grade,
 			Chapter:     req.Chapter,
 			TotalPages:  req.TotalPages,
-			FileSizeMb:  req.FileSizeMb,
 			PDFURL:      pdfURL,
-			CoverURL:    req.CoverURL,
+			CoverImage:  coverImg,
 			IsActive:    isActive,
 			SortOrder:   req.SortOrder,
 		}
 		if mod.TotalPages <= 0 {
 			mod.TotalPages = 20
-		}
-		if mod.FileSizeMb <= 0 {
-			mod.FileSizeMb = 5.0
 		}
 
 		if err := db.Create(&mod).Error; err != nil {
@@ -374,6 +371,9 @@ func UpdateModule() fiber.Handler {
 		}
 		if req.Grade != "" {
 			mod.Grade = req.Grade
+		}
+		if req.CoverURL != "" {
+			mod.CoverImage = req.CoverURL
 		}
 		if req.PDFURL != "" {
 			mod.PDFURL = req.PDFURL
