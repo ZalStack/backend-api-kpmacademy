@@ -259,8 +259,10 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	adminRoutes.Post("/vouchers", handlers.CreateVoucher())
 	adminRoutes.Put("/vouchers/:id", handlers.UpdateVoucher())
 	adminRoutes.Delete("/vouchers/:id", handlers.DeleteVoucher())
+	adminRoutes.Post("/cms/reset-official", handlers.ResetOfficialCatalog())
 
 	// Fallback direct api routes (in case client calls /api/v1/banners or /api/v1/vouchers directly)
+	api.Post("/cms/reset-official", auth, admin, handlers.ResetOfficialCatalog())
 	api.Get("/vouchers", handlers.GetAllVouchersAdmin())
 	api.Post("/banners", auth, admin, handlers.CreateBanner())
 	api.Put("/banners/:id", auth, admin, handlers.UpdateBanner())
