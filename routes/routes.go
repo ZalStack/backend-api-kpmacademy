@@ -238,4 +238,21 @@ func registerAPIRoutes(api fiber.Router, cfg *config.Config) {
 	adminRoutes.Post("/video-orders/:id/grant", handlers.AdminGrantVideoAccess())
 
 	adminRoutes.Get("/notifications", handlers.AdminIndexNotifications())
+
+	// CMS Admin Endpoints
+	adminRoutes.Post("/banners", handlers.CreateBanner())
+	adminRoutes.Put("/banners/:id", handlers.UpdateBanner())
+	adminRoutes.Delete("/banners/:id", handlers.DeleteBanner())
+
+	adminRoutes.Post("/live-classes", handlers.CreateLiveClass())
+	adminRoutes.Put("/live-classes/:id", handlers.UpdateLiveClass())
+	adminRoutes.Delete("/live-classes/:id", handlers.DeleteLiveClass())
+
+	adminRoutes.Post("/modules", handlers.CreateModule())
+	adminRoutes.Put("/modules/:id", handlers.UpdateModule())
+	adminRoutes.Delete("/modules/:id", handlers.DeleteModule())
+
+	adminRoutes.Get("/vouchers", handlers.GetAllVouchersAdmin())
+	adminRoutes.Post("/vouchers", handlers.CreateVoucher())
+	adminRoutes.Delete("/vouchers/:id", handlers.DeleteVoucher())
 }
