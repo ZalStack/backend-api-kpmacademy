@@ -314,14 +314,19 @@ func AdminShowOrder() fiber.Handler {
 
 func AdminVerifyOrder() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id, err := uuid.Parse(c.Params("id"))
-		if err != nil {
-			return utils.BadRequestResponse(c, "Invalid order ID", nil)
-		}
+		param := c.Params("id")
 		db := database.GetDB()
 		var order models.Order
-		if result := db.Where("id = ?", id).First(&order); result.Error != nil {
-			return utils.NotFoundResponse(c, "Order not found")
+		if id, err := uuid.Parse(param); err == nil {
+			if result := db.Where("id = ?", id).First(&order); result.Error != nil {
+				if res2 := db.Where("order_number = ?", param).First(&order); res2.Error != nil {
+					return utils.NotFoundResponse(c, "Order not found")
+				}
+			}
+		} else {
+			if result := db.Where("order_number = ?", param).First(&order); result.Error != nil {
+				return utils.NotFoundResponse(c, "Order not found")
+			}
 		}
 
 		if order.PaymentStatus == statusPaid {
