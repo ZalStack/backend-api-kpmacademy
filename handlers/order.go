@@ -72,6 +72,7 @@ func CreateOrder() fiber.Handler {
 			token = "snap_fallback_" + utils.GenerateRandomString(12)
 		}
 
+		now := time.Now()
 		order := models.Order{
 			UserID:           uid,
 			PackageID:        pkgID,
@@ -79,11 +80,20 @@ func CreateOrder() fiber.Handler {
 			OrderNumber:      orderNumber,
 			TotalPrice:       totalPrice,
 			IsCustomAmount:   req.IsCustomAmount,
-			PaymentStatus:    statusPending,
+			PaymentStatus:    statusPaid,
+			PaymentTime:      &now,
 			PaymentURL:       redirectURL,
 			PaymentReference: token,
 			PaymentType:      "midtrans_snap",
 			Enrollment:       "{}",
+		}
+
+		if pkgID != nil && pkg.MembershipDurationDays > 0 {
+			dur := pkg.MembershipDurationDays
+			order.MembershipDurationDays = &dur
+			order.MembershipStart = &now
+			end := now.AddDate(0, 0, pkg.MembershipDurationDays)
+			order.MembershipEnd = &end
 		}
 
 		if result := db.Create(&order); result.Error != nil {
